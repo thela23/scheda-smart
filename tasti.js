@@ -19,6 +19,8 @@ var Tasti = (function () {
   /* ---------- il motore dei suoni di Granalume, portato com'è ---------- */
   var SND = { ctx: null, out: null, bank: {}, data: null, dataFor: null, bankFor: null };
   var SR = 48000;
+  // telefono o tablet (dito, non mouse): altoparlante piccolo, si usa la voce "tel" degli switch
+  var PICCOLO = (function () { try { return matchMedia("(pointer:coarse)").matches; } catch (_) { return false; } })();
   function audio() {
     if (SND.ctx) return SND.ctx;
     var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
@@ -67,16 +69,26 @@ var Tasti = (function () {
     gong: { dur: 1.6, seed: 29, plain: true, tone: 9000, dry: .04, low: 160, hits: [[0, 1, .0006, 5000]],
       modes: [[660, .9, .45], [990, .7, .32], [1320, .55, .26], [1980, .35, .18], [2640, .2, .12], [3300, .12, .08]] }
   };
-  var SWITCHES = { thock: { f: .92, tau: 1.1, tone: .85, contact: .75 },
-    creamy: { f: 1.2, tau: .7, tone: .62, contact: .2, knockLen: 1.8, knockBr: .5, bodyGain: .4, hiGain: .35, dry: .4, lowMul: 1.8, extra: [[660, 2.2, .007]], upVol: .5 },
-    clacky: { f: 1.9, tau: .8, tone: 2.2, contact: 2.5, knockLen: .5, knockBr: 2.2, bodyGain: .3, hiGain: 1.4, hiTau: 1.4, dry: 2, lowMul: 3, extra: [[3200, 1, .004]], upVol: 1.3, upF: 1.3 } };
+  // tel: come suona lo switch dall'altoparlante del telefono, che sotto i ~450 Hz non suona quasi nulla.
+  // Il corpo grave del thock sparirebbe e i tre switch sembrerebbero tutti clacky: si aggiungono le armoniche
+  // dei modi gravi (l'orecchio ricostruisce la nota bassa da sole: "fondamentale mancante") e si allunga il
+  // thock, così la differenza resta. Su PC e cuffie non cambia niente: suona come Granalume.
+  var SWITCHES = { thock: { f: .92, tau: 1.1, tone: .85, contact: .75, tel: { harm: [[2, 1.2]], tau: 2, tone: .45, contact: .2 } },
+    creamy: { f: 1.2, tau: .7, tone: .62, contact: .2, knockLen: 1.8, knockBr: .5, bodyGain: .4, hiGain: .35, dry: .4, lowMul: 1.8, extra: [[660, 2.2, .007]], upVol: .5,
+      tel: { harm: [[2, .5]], tau: 1.1, extra: [[1250, 2.2, .012]] } },
+    clacky: { f: 1.9, tau: .8, tone: 2.2, contact: 2.5, knockLen: .5, knockBr: 2.2, bodyGain: .3, hiGain: 1.4, hiTau: 1.4, dry: 2, lowMul: 3, extra: [[3200, 1, .004]], upVol: 1.3, upF: 1.3,
+      tel: { tone: 1.6, contact: 1, extra: [[4300, 1.4, .003], [2600, .8, .004]] } } };
   var nn = function (a, b) { return a == null ? b : a; };
   function voiced(o, sw, name) {
-    var v = SWITCHES[sw] || SWITCHES.thock, f = v.f * (name === "up" ? nn(v.upF, 1) : 1);
+    var v = SWITCHES[sw] || SWITCHES.thock, f = v.f * (name === "up" ? nn(v.upF, 1) : 1), t = PICCOLO && v.tel ? v.tel : {};
     var modes = o.modes.map(function (m) {
-      return [m[0] * f, m[1] * (m[0] < 450 ? nn(v.bodyGain, 1) : 1) * (m[0] > 1000 ? nn(v.hiGain, 1) : 1), m[2] * v.tau * (m[0] > 1000 ? nn(v.hiTau, 1) : 1)];
+      return [m[0] * f, m[1] * (m[0] < 450 ? nn(v.bodyGain, 1) : 1) * (m[0] > 1000 ? nn(v.hiGain, 1) : 1), m[2] * v.tau * nn(t.tau, 1) * (m[0] > 1000 ? nn(v.hiTau, 1) : 1)];
     });
-    (v.extra || []).forEach(function (m) { modes.push(m); });
+    var arm = [];
+    modes.forEach(function (m) { if (m[0] < 500) (t.harm || []).forEach(function (h) { arm.push([m[0] * h[0], m[1] * h[1], m[2]]); }); });
+    modes = modes.concat(arm);
+    (v.extra || []).concat(t.extra || []).forEach(function (m) { modes.push(m); });
+    if (t.contact || t.tone) v = Object.assign({}, v, { contact: nn(t.contact, v.contact), tone: v.tone * nn(t.tone, 1) });
     return { seed: o.seed, dur: o.dur, tone: o.tone * v.tone, low: (o.low || 90) * nn(v.lowMul, f), dry: nn(o.dry, .25) * nn(v.dry, 1), modes: modes,
       hits: o.hits.map(function (h, i) { return i === 0 ? [h[0], Math.min(1, h[1] * v.contact), h[2], h[3] * v.tone] : [h[0], h[1], h[2] * nn(v.knockLen, 1), h[3] * nn(v.knockBr, v.tone)]; }) };
   }
@@ -85,7 +97,8 @@ var Tasti = (function () {
     var sw = P.switch; if (SND.dataFor === sw) return;
     SND.data = {}; SND.dataFor = sw;
     Object.keys(SOUNDS).forEach(function (name) {
-      var o = SOUNDS[name], v = o.plain ? o : voiced(o, sw, name), dur = o.dur * (o.plain ? 1 : (SWITCHES[sw] || SWITCHES.thock).tau);
+      var S = SWITCHES[sw] || SWITCHES.thock;
+      var o = SOUNDS[name], v = o.plain ? o : voiced(o, sw, name), dur = o.dur * (o.plain ? 1 : S.tau * (PICCOLO && S.tel ? nn(S.tel.tau, 1) : 1));
       SND.data[name] = (name === "gong" ? [0] : [0, 1, 2, 3]).map(function (i) {
         var n = Math.round(SR * dur), d = new Float32Array(n), j, m = 0; switchTake(v, i)(d, SR);
         for (j = 0; j < n; j++) m = Math.max(m, Math.abs(d[j])); if (m) for (j = 0; j < n; j++) d[j] *= .85 / m;
