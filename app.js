@@ -562,10 +562,13 @@
 
     if (TIMER) {
       // recupero: il conto alla rovescia prende il centro, Fatta diventa Salta
-      var dopo = F.q.filter(function (q) { return !fatto(q); })[0], nx = dopo ? R.blocchi[dopo.bi].ex[dopo.ei].e : e;
+      // dopo il recupero si riparte da dove sei arrivato (F.pos), non dal primo esercizio lasciato indietro
+      var dopo = !fatto(it) ? it : F.q.filter(function (q) { return !fatto(q); })[0], nx = dopo ? R.blocchi[dopo.bi].ex[dopo.ei].e : e;
       $("#fname").textContent = nx.name; $("#fvid").href = VID(nx.v); $("#fcue").textContent = "";
+      var carDopo = dopo ? caricoDi(KEYS[dopo.bi][dopo.ei], nx) : "";
       hero = '<div class="fserie">Recupero, poi <em>' + (dopo ? (dopo.j + 1) + 'ª serie' : 'basta') + '</em></div>' +
-        '<div class="fhuge rest" id="fT">' + fmtT((TIMER.fine - Date.now()) / 1000) + '</div><div class="ftarget">' + esc(TIMER.label) + '</div>';
+        '<div class="fhuge rest" id="fT">' + fmtT((TIMER.fine - Date.now()) / 1000) + '</div><div class="ftarget">' + esc(TIMER.label) +
+        (carDopo ? ' · <b class="fcar">' + esc(carDopo) + '</b>' : '') + '</div>';
       ctl = '<div class="freps"><button type="button" class="key sm" data-f="piu"><span class="cap"><span class="kw">+15 s</span></span></button></div><div class="fhint">Fatta salta il recupero</div>';
       dw.textContent = "Salta";
     } else if (finita) {
@@ -592,7 +595,20 @@
       hero = '<div class="fserie">' + lab + (gia ? ' · <span style="color:var(--ok)">fatta</span>' : '') + '</div>' +
         '<div class="fhuge' + (big === "S" ? ' word' : '') + '" id="fbig">' + big + '</div><div class="ftarget">' + tgt + '</div>' +
         (it.primo && b.ramp ? '<div class="framp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '</div>' : '');
-      ctl = '<div class="fload">' +
+      // il prossimo esercizio col suo carico: in superserie si preparano tutti e due prima di partire
+      var pk = -1;
+      for (var kk = 1; kk < F.q.length; kk++) {
+        var cand = F.q[(F.pos + kk) % F.q.length];
+        if (!fatto(cand) && !(cand.bi === it.bi && cand.ei === it.ei)) { pk = (F.pos + kk) % F.q.length; break; }
+      }
+      ctl = "";
+      if (pk >= 0) {
+        var pq = F.q[pk], pe = R.blocchi[pq.bi].ex[pq.ei].e, pcar = caricoDi(KEYS[pq.bi][pq.ei], pe);
+        ctl += '<button type="button" class="fnext" data-f="vai" data-p="' + pk + '"><span class="fnl">' +
+          (pq.bi === it.bi && pq.j === it.j ? 'Subito dopo' : 'Poi') + '</span><span class="fnn">' + esc(pe.name) + '</span>' +
+          (pcar ? '<span class="fnc">' + esc(pcar) + '</span>' : '') + '</button>';
+      }
+      ctl += '<div class="fload">' +
         (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">−' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') +
         '<div class="val' + (num ? '' : ' txt') + '" id="fld">' + esc(load || "—") + '</div>' +
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
@@ -675,6 +691,7 @@
     if (t.dataset.r) { var n = +t.dataset.r; F.pick = F.pick === n ? null : n; renderF(); return; }
     var it = F.q[F.pos], x = R.blocchi[it.bi].ex[it.ei], key = KEYS[it.bi][it.ei], f = t.dataset.f;
     if (f === "piu") { piu15(); return; }
+    if (f === "vai") { Tasti.play("tick"); F.pos = +t.dataset.p; F.pick = null; renderF(true); return; }
     if (f === "meno" || f === "piu1") {
       var load = caricoDi(key, x.e);
       applicaCarico({ key: key, el: null }, bump(load, f === "meno" ? -1 : 1, stepDi(x.e, load)));
