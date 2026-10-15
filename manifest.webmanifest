@@ -1,0 +1,16 @@
+{
+  "name": "Scheda Smart",
+  "short_name": "Scheda",
+  "description": "Scheda di allenamento personale: Tempo Smart, una cosa alla volta, storico.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a12",
+  "theme_color": "#0b0a12",
+  "icons": [
+    { "src": "icone/icona-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
