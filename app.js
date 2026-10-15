@@ -36,8 +36,14 @@
   var SEDUTE = leggi(LS.sed, {}) || {};
   var CARICHI = leggi(LS.car, null);
   if (!CARICHI || !CARICHI.loads) CARICHI = { ts: 0, loads: {} };
-  function salvaSedute() { scrivi(LS.sed, SEDUTE); }
-  function salvaCarichi() { CARICHI.ts = Date.now(); scrivi(LS.car, CARICHI); }
+  function salvaSedute() { scrivi(LS.sed, SEDUTE); syncPresto(); }
+  function salvaCarichi() { CARICHI.ts = Date.now(); scrivi(LS.car, CARICHI); syncPresto(); }
+  // quando è cambiato ogni carico: serve alla sincronizzazione per far vincere la modifica più recente
+  function segnaCarico(key) { if (!CARICHI.tk) CARICHI.tk = {}; CARICHI.tk[key] = Date.now(); }
+  // sedute eliminate (Azzera / Elimina): così non tornano dall'altro dispositivo
+  LS.canc = "ss_cancellate_v1"; LS.sync = "ss_sync_v1";
+  var CANC = leggi(LS.canc, {}) || {};
+  function cancella(id) { delete SEDUTE[id]; CANC[id] = Date.now(); scrivi(LS.canc, CANC); salvaSedute(); }
 
   /* ===================== stato della vista ===================== */
   var vista = "allena", luogo = "casa", dayIx = 0, budget = 0, full = 0, R = null;
@@ -421,7 +427,7 @@
     return { el: ex, key: ex.dataset.key, bi: bi, ei: ei, x: R.blocchi[bi].ex[ei], e: R.blocchi[bi].ex[ei].e };
   }
   function applicaCarico(c, val) {
-    CARICHI.loads[c.key] = val; salvaCarichi();
+    CARICHI.loads[c.key] = val; segnaCarico(c.key); salvaCarichi();
     var s = sedutaOggi();
     if (s && s.ex[c.key]) { s.ex[c.key].load = val; s.ex[c.key].kg = kgDi(val); salva(s); }
     var chip = c.el && $(".chip.load", c.el);
@@ -445,7 +451,7 @@
     var stp = t.closest(".stp");
     if (stp) { c = exCtx(stp); var inp = $(".lval", c.el); inp.value = bump(inp.value, +stp.dataset.d, stepDi(c.e, inp.value)); applicaCarico(c, inp.value); return; }
     if (t.closest(".lreset")) {
-      c = exCtx(t); delete CARICHI.loads[c.key]; salvaCarichi();
+      c = exCtx(t); delete CARICHI.loads[c.key]; segnaCarico(c.key); salvaCarichi();
       var s2 = sedutaOggi(); if (s2 && s2.ex[c.key]) { s2.ex[c.key].load = c.e.load; s2.ex[c.key].kg = kgDi(c.e.load); salva(s2); }
       renderBlocchi(); return;
     }
@@ -475,7 +481,7 @@
       setTimeout(function () { if (b.dataset.armed) { delete b.dataset.armed; b.textContent = "Azzera seduta"; b.classList.remove("danger"); } }, 3500);
       return;
     }
-    delete SEDUTE[sid()]; salvaSedute(); fermaTimer(); renderAllena();
+    cancella(sid()); fermaTimer(); renderAllena();
   });
 
   /* ===================== una cosa alla volta ===================== */
@@ -523,6 +529,9 @@
     a[j] = String(n); r.reps = a.join("-");
   }
 
+  // "8–10/lato" → "8–10 ripetizioni per lato"
+  function ripTesto(reps) { var r = String(reps); return /\//.test(r) ? esc(r.replace(/\/\s*(\w+)/, " ripetizioni per $1")) : esc(r) + " ripetizioni"; }
+
   function renderF(anim) {
     if (!F.open || !R) return;
     F.q = codaF();
@@ -536,6 +545,20 @@
     $("#fblk").textContent = "Blocco " + nb + (live > 1 ? " · superserie" : "");
     $("#fcnt").textContent = fatti + " / " + F.q.length + " serie";
     var dw = $("#fdonew"), hero = "", ctl = "";
+
+    // la seduta intera a lato, con le serie di ogni esercizio (si vede solo sul desktop)
+    var visti = {}, rail = "", bloccoPrima = -1, nbl = 0;
+    F.q.forEach(function (q) {
+      var id = q.bi + ":" + q.ei; if (visti[id]) return; visti[id] = 1;
+      var serieEs = [];
+      F.q.forEach(function (z, kk) { if (z.bi === q.bi && z.ei === q.ei) serieEs.push({ z: z, kk: kk }); });
+      var mancanti = serieEs.filter(function (o) { return !fatto(o.z); });
+      if (q.bi !== bloccoPrima) { bloccoPrima = q.bi; nbl++; rail += '<div class="frb">Blocco ' + nbl + '</div>'; }
+      rail += '<button type="button" class="fr' + (it.bi === q.bi && it.ei === q.ei ? ' cur' : '') + (mancanti.length ? '' : ' ok') + '" data-p="' + (mancanti[0] || serieEs[0]).kk + '">' +
+        '<span class="frn">' + esc(R.blocchi[q.bi].ex[q.ei].e.name) + '</span><span class="frd">' +
+        serieEs.map(function (o) { return '<i class="' + (fatto(o.z) ? 'd' : o.kk === F.pos ? 'c' : '') + '"></i>'; }).join("") + '</span></button>';
+    });
+    $("#frail").innerHTML = '<div class="frh">' + esc(G().nome) + '<span class="sub">' + sottotitolo(G().sub) + '</span></div>' + rail;
 
     if (TIMER) {
       // recupero: il conto alla rovescia prende il centro, Fatta diventa Salta
@@ -560,18 +583,18 @@
       if (x.myo) {
         lab = it.j === 0 ? 'Serie di <em>attivazione</em>' : 'La <em>' + ORD[it.j - 1] + '</em> mini-serie di 3';
         big = it.j === 0 ? "S" : String(it.j);
-        tgt = it.j === 0 ? esc(e.reps) + ' ripetizioni, finché ne restano 0–1 · poi 3 mini-serie' : '3–5 ripetizioni · prima 3–5 respiri';
+        tgt = it.j === 0 ? ripTesto(e.reps) + ', finché ne restano 0–1 · poi 3 mini-serie' : '3–5 ripetizioni · prima 3–5 respiri';
       } else {
         lab = 'La <em>' + ORD[it.j] + '</em> serie di ' + x.n;
         big = String(it.j + 1);
-        tgt = esc(e.reps) + (e.hold ? '' : ' ripetizioni') + (e.rir ? ' · RIR ' + esc(e.rir) : '') + (live > 1 || x.n > 1 ? ' · rec ' + b.rest + ' s' : '');
+        tgt = (e.hold ? esc(e.reps) : ripTesto(e.reps)) + (e.rir ? ' · RIR ' + esc(e.rir) : '') + (live > 1 || x.n > 1 ? ' · rec ' + b.rest + ' s' : '');
       }
       hero = '<div class="fserie">' + lab + (gia ? ' · <span style="color:var(--ok)">fatta</span>' : '') + '</div>' +
         '<div class="fhuge' + (big === "S" ? ' word' : '') + '" id="fbig">' + big + '</div><div class="ftarget">' + tgt + '</div>' +
         (it.primo && b.ramp ? '<div class="framp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '</div>' : '');
       ctl = '<div class="fload">' +
         (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">−' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') +
-        '<div class="val" id="fld">' + esc(load || "—") + '</div>' +
+        '<div class="val' + (num ? '' : ' txt') + '" id="fld">' + esc(load || "—") + '</div>' +
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
       var tr = tastiRip(e, x, it.j);
       if (tr.length) ctl += '<div class="freps" role="group" aria-label="Ripetizioni fatte">' + tr.map(function (n) {
@@ -642,6 +665,10 @@
   $("#fnext").addEventListener("click", function () { if (F.pos < F.q.length - 1) { F.pos++; F.pick = null; renderF(true); } });
   $("#fclose").addEventListener("click", function () { Tasti.play("tick"); chiudiF(); });
   $("#fgo").addEventListener("click", apriF);
+  $("#frail").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-p]"); if (!b || TIMER) return;
+    Tasti.play("tick"); F.pos = +b.dataset.p; F.pick = null; renderF(true);
+  });
   $("#fctl").addEventListener("click", function (ev) {
     var t = ev.target.closest("[data-f],[data-r]"); if (!t) return;
     Tasti.haptic();
@@ -842,7 +869,7 @@
     var del = e.target.closest("[data-del]");
     if (del) {
       if (!del.dataset.armed) { del.dataset.armed = "1"; del.textContent = "Sicuro? Tocca di nuovo"; del.classList.add("danger"); return; }
-      delete SEDUTE[del.dataset.del]; salvaSedute(); renderStorico();
+      cancella(del.dataset.del); renderStorico();
     }
   });
 
@@ -864,7 +891,7 @@
 
   /* ===================== backup: esporta / importa ===================== */
   function datiExport() {
-    return JSON.stringify({ app: "scheda-smart", formato: 1, scheda: SCHEDA.versione, esportato: new Date().toISOString(), sedute: SEDUTE, carichi: CARICHI }, null, 1);
+    return JSON.stringify({ app: "scheda-smart", formato: 1, scheda: SCHEDA.versione, esportato: new Date().toISOString(), sedute: SEDUTE, carichi: CARICHI, cancellate: CANC }, null, 1);
   }
   function msg(t, err) { var m = $("#bkmsg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
   function infoBackup() {
@@ -912,7 +939,9 @@
           if (!SEDUTE[id]) { SEDUTE[id] = s; nuove++; }
           else if ((s.ts || 0) > (SEDUTE[id].ts || 0)) { SEDUTE[id] = s; agg++; }
         });
-        if (d.carichi && d.carichi.loads && (d.carichi.ts || 0) > (CARICHI.ts || 0)) { CARICHI = d.carichi; scrivi(LS.car, CARICHI); }
+        // carichi e cancellazioni: stessa fusione della sincronizzazione (per esercizio vince la modifica più recente)
+        var m = SyncGist.merge({ sedute: SEDUTE, carichi: CARICHI, cancellate: CANC }, { sedute: {}, carichi: d.carichi, cancellate: d.cancellate });
+        SEDUTE = m.sedute; CARICHI = m.carichi; CANC = m.cancellate; scrivi(LS.car, CARICHI); scrivi(LS.canc, CANC);
         salvaSedute(); renderStorico();
         msg("Importato: " + nuove + " sedute nuove, " + agg + " aggiornate.");
       } catch (_) { msg("Questo file non è un backup della Scheda Smart.", true); }
@@ -926,11 +955,102 @@
     vista = v;
     ["allena", "storico", "guida"].forEach(function (k) { $("#v-" + k).hidden = k !== v; });
     $$("#tabs button").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.v === v); });
-    if (v === "storico") { renderStorico(); infoBackup(); }
+    if (v === "storico") { renderStorico(); infoBackup(); statoSync(); }
     if (v === "allena") renderAllena();
     salvaUI(); window.scrollTo(0, 0);
   }
   $("#tabs").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) { Tasti.play("tick"); mostra(b.dataset.v); } });
+
+  /* ===================== sincronizzazione iPhone ↔ PC (gist privato, vedi sync.js) ===================== */
+  var SY = leggi(LS.sync, null) || {};          // { token, gist, ultima, errore } — solo in questo dispositivo
+  var syncT = null, syncInCorso = false, syncAncora = false, rinviato = false;
+  function salvaSY() { scrivi(LS.sync, SY); }
+  function syncAttivo() { return !!(SY && SY.token && window.SyncGist && window.fetch); }
+  function syncPresto() { if (!syncAttivo()) return; clearTimeout(syncT); statoSync("attesa"); syncT = setTimeout(sincronizza, 2000); }
+  function oraDi(ts) { var d = new Date(ts); return (d.toDateString() === new Date().toDateString() ? "oggi" : dmy(d.toISOString().slice(0, 10))) + " alle " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+
+  // ridisegna con i dati arrivati dall'altro dispositivo, senza strappare il testo che stai scrivendo
+  function staScrivendo() { var a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== "range"; }
+  function ridisegna() {
+    if (staScrivendo()) { rinviato = true; return; }
+    rinviato = false;
+    if (vista === "allena") { renderAllena(); renderF(); } else if (vista === "storico") renderStorico();
+  }
+  document.addEventListener("focusout", function () { if (rinviato) setTimeout(function () { if (!staScrivendo()) ridisegna(); }, 50); });
+
+  function sincronizza() {
+    if (!syncAttivo()) return Promise.resolve();
+    if (syncInCorso) { syncAncora = true; return Promise.resolve(); }
+    syncInCorso = true; clearTimeout(syncT); statoSync("in corso");
+    var tok = SY.token;
+    var trovaId = SY.gist ? Promise.resolve(SY.gist) : SyncGist.trova(tok).then(function (id) { SY.gist = id; salvaSY(); return id; });
+    return trovaId.then(function (id) {
+      return SyncGist.leggi(tok, id).then(function (remoto) {
+        var m = SyncGist.merge({ sedute: SEDUTE, carichi: CARICHI, cancellate: CANC }, remoto);
+        var qui = { s: SEDUTE, c: CARICHI.loads, t: CARICHI.tk || {}, k: CANC };
+        var la = { s: remoto.sedute || {}, c: (remoto.carichi || {}).loads || {}, t: (remoto.carichi || {}).tk || {}, k: remoto.cancellate || {} };
+        var nuovo = { s: m.sedute, c: m.carichi.loads, t: m.carichi.tk, k: m.cancellate };
+        if (!SyncGist.uguali(nuovo, qui)) {
+          SEDUTE = m.sedute; CARICHI = m.carichi; CANC = m.cancellate;
+          scrivi(LS.sed, SEDUTE); scrivi(LS.car, CARICHI); scrivi(LS.canc, CANC);
+          ridisegna();
+        }
+        if (!SyncGist.uguali(nuovo, la))
+          return SyncGist.scrivi(tok, id, { app: "scheda-smart", formato: 2, scheda: SCHEDA.versione, aggiornato: new Date().toISOString(),
+            sedute: m.sedute, carichi: m.carichi, cancellate: m.cancellate });
+      });
+    }).then(function () {
+      SY.ultima = Date.now(); SY.errore = ""; salvaSY(); statoSync();
+    }, function (e) {
+      if (e && e.tipo === "permesso" && SY.gist) SY.gist = null;   // il gist non c'è più: al prossimo giro lo ritrova o lo ricrea
+      SY.errore = (e && e.message) || "Sincronizzazione non riuscita."; SY.tipoErr = e && e.tipo; salvaSY(); statoSync();
+    }).then(function () {
+      syncInCorso = false;
+      if (syncAncora) { syncAncora = false; syncPresto(); }
+    });
+  }
+
+  // il pallino in alto e la scheda «Sincronizzazione» nello Storico
+  function statoSync(fase) {
+    var dot = $("#sydot"), att = syncAttivo(), txt;
+    if (!att) txt = "";
+    else if (fase === "in corso") txt = "Sincronizzo…";
+    else if (fase === "attesa") txt = "Modifiche da mandare";
+    else if (SY.errore) txt = SY.errore;
+    else txt = SY.ultima ? "Sincronizzato " + oraDi(SY.ultima) : "Collegato";
+    dot.hidden = !att;
+    dot.className = "sydot" + (!att ? "" : fase ? " va" : SY.errore ? (SY.tipoErr === "offline" ? " va" : " err") : " ok");
+    dot.title = txt;
+    var box = $("#sync"); if (!box) return;
+    if (!att) {
+      box.innerHTML = '<p>Per avere <b>gli stessi dati su iPhone e PC</b>: crea su GitHub un token con il solo permesso <b>gist</b> ' +
+        '(<a href="https://github.com/settings/tokens/new?scopes=gist&description=Scheda%20Smart" target="_blank" rel="noopener">apri la pagina già impostata ↗</a>, ' +
+        'scadenza «No expiration») e incollalo qui, <b>su ogni dispositivo</b>. Resta solo in questo dispositivo.</p>' +
+        '<div class="sytok"><input type="password" id="sytok" placeholder="Token GitHub (ghp_…)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Token GitHub">' +
+        '<button type="button" class="btn pri" id="sycol">Collega</button></div>';
+    } else {
+      box.innerHTML = '<div class="syst"><span class="' + dot.className + '"></span><span>' + esc(txt) + '</span></div>' +
+        '<p>Sedute, carichi e cancellazioni passano da soli tra i dispositivi collegati, anche dopo un periodo senza rete.</p>' +
+        '<div class="bk"><button type="button" class="btn" id="synow">Sincronizza ora</button><button type="button" class="btn" id="syoff">Scollega questo dispositivo</button></div>';
+    }
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("#sycol,#synow,#syoff"); if (!t) return;
+    if (t.id === "sycol") {
+      var v = ($("#sytok").value || "").trim();
+      if (!/^(ghp_|github_pat_|gho_)[A-Za-z0-9_]{20,}$/.test(v)) { msg("Questo non sembra un token GitHub (inizia con ghp_).", true); return; }
+      SY = { token: v }; salvaSY(); statoSync("in corso");
+      sincronizza().then(function () {
+        if (SY.errore && SY.tipoErr !== "offline") { msg(SY.errore + " Controlla il token e riprova.", true); SY = {}; salvaSY(); statoSync(); }
+        else { msg("Collegato. Da ora questo dispositivo è sincronizzato."); renderStorico(); }
+      });
+    } else if (t.id === "synow") sincronizza();
+    else if (t.id === "syoff") { SY = {}; salvaSY(); statoSync(); msg("Scollegato: i dati restano in questo dispositivo."); }
+  });
+  // quando si sincronizza: all'apertura, quando torni sull'app, quando torna la rete, e ogni 2 minuti mentre la usi
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") sincronizza(); });
+  window.addEventListener("online", function () { sincronizza(); });
+  setInterval(function () { if (document.visibilityState === "visible") sincronizza(); }, 120000);
 
   /* ===================== app sul telefono (solo online) ===================== */
   // Il service worker tiene una copia per usarla senza rete e porta le versioni nuove da solo.
@@ -954,6 +1074,7 @@
   /* ===================== avvio ===================== */
   $("#ver").textContent = "Scheda " + SCHEDA.versione;
   $("#ver2").textContent = "Scheda " + SCHEDA.versione;
+  $("#ver3").textContent = "Scheda " + SCHEDA.versione;
   var ui = leggi(LS.ui, null);
   if (ui && ui.data === oggi() && SCHEDA.luoghi[ui.luogo] && SCHEDA.luoghi[ui.luogo].giorni[ui.day]) {
     luogo = ui.luogo; dayIx = ui.day;
@@ -967,4 +1088,5 @@
     budget = full;
     mostra("allena");
   }
+  statoSync(); sincronizza();
 })();

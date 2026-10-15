@@ -265,6 +265,7 @@ body.focus #timer{display:none!important}
 .fload{display:flex;align-items:center;gap:10px;margin:0 0 10px}
 .fload .key.sm{flex:0 0 64px}
 .fload .val{flex:1;text-align:center;font:400 36px/1 var(--serif);font-variant-numeric:tabular-nums}
+.fload .val.txt{font:500 14px/1.2 var(--body);color:var(--muted)}
 .fload .val small{font:500 12px/1 var(--body);color:var(--muted);margin-left:4px}
 .freps{display:flex;gap:7px;margin-bottom:4px}
 .fhint{text-align:center;color:var(--faint);font-size:12px;margin-top:8px;min-height:16px}
@@ -343,6 +344,96 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
   padding:12px 16px;border-radius:999px;background:var(--glass-strong);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
   box-shadow:inset 0 0 0 1px var(--line-2),0 30px 70px -20px #000;font:400 13px/1.2 var(--body);color:var(--muted);white-space:nowrap}
 .aggiorna b{color:var(--ink);font-weight:500}
+/* ---------- sincronizzazione ---------- */
+.syncard{padding:16px;display:flex;flex-direction:column;gap:10px}
+#sync p{margin:0;font-size:13.5px;color:var(--muted)}
+#sync p b{color:var(--ink);font-weight:500}
+#sync a{color:var(--accent)}
+.sytok{display:flex;gap:8px;flex-wrap:wrap}
+.sytok input{flex:1 1 200px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1px var(--line-2);border-radius:12px;background:rgba(0,0,0,.25);padding:0 12px;font:500 14px var(--body)}
+.syst{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink)}
+.sydot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+.sydot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(143,227,184,.15)}
+.sydot.va{background:#ffd27a;box-shadow:0 0 0 3px rgba(255,210,122,.15)}
+.sydot.err{background:var(--cut);box-shadow:0 0 0 3px rgba(255,154,138,.15)}
+.tabbar button{position:relative}
+.tabbar #sydot{position:absolute;top:9px;left:calc(50% + 8px)}
+.tb-brand,.tb-right,.frail{display:none}
+
+/* ---------- desktop: la stanza a tutto schermo ---------- */
+@media (min-width:980px){
+  body{font-size:15px}
+  .wrap{max-width:1240px;padding:96px 36px 60px;gap:18px}
+  /* la barra diventa quella in alto di Granalume: marchio, navigazione a pillola, versione */
+  .tabbar{top:0;bottom:auto;height:64px;padding:0 24px;align-items:center;justify-content:space-between;background:rgba(11,10,18,.72);box-shadow:inset 0 -1px 0 var(--line)}
+  .tb-brand{display:flex;align-items:center;gap:10px;flex:1 1 0}
+  .tb-right{display:flex;justify-content:flex-end;flex:1 1 0}
+  .tb-right .eyebrow{margin:0}
+  .tabbar .in{width:auto;max-width:none;padding:4px;border-radius:999px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);gap:2px}
+  .tabbar button{flex:0 0 auto;flex-direction:row;min-height:38px;padding:0 18px;border-radius:999px;gap:8px;font:500 13px/1 var(--body);letter-spacing:0;transition:background .3s var(--ease),color .3s}
+  .tabbar button svg{width:17px;height:17px}
+  .tabbar button[aria-pressed="true"]{background:var(--raise-2)}
+  .tabbar #sydot{position:static;margin-left:2px}
+  #v-allena .brand,#v-storico .brand,#v-guida .brand{display:none}
+  /* Allenati: a sinistra il giorno, il tempo e il tasto; a destra tutta la seduta */
+  .allena{display:grid;grid-template-columns:minmax(360px,420px) minmax(0,1fr);gap:36px;align-items:start}
+  .colL,.colR{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .colL{position:sticky;top:88px;max-height:calc(100vh - 104px);overflow:auto;padding:2px 6px 24px 2px;margin:-2px -6px 0 -2px;scrollbar-width:none}
+  .colL::-webkit-scrollbar{display:none}
+  h1{font-size:46px}
+  h1 .sub{font-size:24px}
+  .colR h2{margin-top:6px;font-size:30px}
+  .prog{top:64px}
+  #blocks{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;align-items:start}
+  .block{transition:box-shadow .3s}
+  .block:hover{box-shadow:inset 0 0 0 1px var(--line-2)}
+  /* Storico: grafici affiancati, dati a lato */
+  #hist{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #hist>.tiles,#hist>.pick,#hist>h2,#hist>div:not(.chartbox){grid-column:1/-1}
+  #hist>.card{grid-column:1/-1}
+  .dati{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .guide{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .guide>.top,.guide>.foot{grid-column:1/-1}
+  /* timer: un vetro in basso a destra */
+  #timer{left:auto;right:28px;transform:none;bottom:28px;width:420px}
+  /* una cosa alla volta: la seduta a sinistra, il palco al centro, la tastiera sotto */
+  #focus{display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;column-gap:48px;padding:32px 48px 28px}
+  #focus .fin{grid-column:2;max-width:760px;width:100%}
+  #focus .keyrow{grid-column:2;max-width:760px}
+  .frail{display:flex;flex-direction:column;gap:4px;grid-row:1/3;overflow:auto;padding:4px 10px 10px 2px;margin-left:-2px;scrollbar-width:none;box-shadow:inset -1px 0 0 var(--line)}
+  .frail::-webkit-scrollbar{display:none}
+  .frh{font:400 30px/1.05 var(--serif);text-shadow:var(--glow);margin:4px 0 14px}
+  .frh .sub{display:block;font-size:17px;line-height:1.25;color:var(--muted);text-shadow:none;margin-top:6px}
+  .frb{font:500 10.5px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:14px 4px 6px}
+  .fr{appearance:none;border:0;background:none;text-align:left;cursor:pointer;padding:10px 12px;border-radius:14px;display:flex;flex-direction:column;gap:8px;transition:background .2s}
+  .fr:hover{background:var(--surface)}
+  .fr.cur{background:var(--raise);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .fr.ok .frn{color:var(--faint)}
+  .frn{font:400 16px/1.15 var(--serif)}
+  .frd{display:flex;gap:4px}
+  .frd i{width:16px;height:4px;border-radius:4px;background:rgba(255,255,255,.12)}
+  .frd i.d{background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .frd i.c{background:var(--ink)}
+  .fname h2{font-size:52px;min-height:0}
+  .fhuge{font-size:200px}
+  .fhuge.rest{font-size:160px}
+  .fhuge.word{font-size:150px}
+  .fserie{font-size:24px}
+  .fload .val{font-size:44px}
+  .fload .key.sm{flex:0 0 84px}
+  .key{height:72px}
+  .key.sm{height:58px}
+  .fhint{font-size:13px}
+}
+@media (min-width:980px) and (max-height:820px){
+  .fhuge{font-size:150px}.fhuge.rest{font-size:120px}.fname h2{font-size:42px}
+}
+/* app installata su Windows con la barra del titolo «nostra»: la barra in alto prende il posto di quella di Windows */
+@media (min-width:980px) and (display-mode:window-controls-overlay){
+  .tabbar{-webkit-app-region:drag;app-region:drag;padding-right:calc(100vw - env(titlebar-area-x,0px) - env(titlebar-area-width,100vw) + 18px);
+    padding-left:calc(env(titlebar-area-x,0px) + 18px)}
+  .tabbar button,.tabbar .eyebrow{-webkit-app-region:no-drag;app-region:no-drag}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:380px){.big b{font-size:64px}.dring{width:86px;height:86px}.seg button{padding:0 11px}.fhuge{font-size:112px}.fname h2{font-size:30px}}
 @media (max-height:700px){.fhuge{font-size:96px}.fhuge.rest{font-size:84px}.fname h2{font-size:28px;min-height:58px}.fload .val{font-size:30px}}
@@ -356,7 +447,8 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
 
 <!-- ===================== ALLENATI ===================== -->
 <section id="v-allena">
-  <div style="display:flex;flex-direction:column;gap:14px">
+  <div class="allena">
+  <div class="colL">
     <div class="top">
       <div class="brand"><span class="ring"></span><span class="wm">SCHEDA SMART</span><span class="eyebrow" id="ver">Scheda</span></div>
       <h1 id="titolo">Giorno A</h1>
@@ -391,7 +483,8 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
     <details class="card" id="d-mus"><summary>Stimolo per muscolo</summary><div class="cbody"><div class="mus" id="mus"></div></div></details>
     <details class="card" id="d-ch"><summary>Cosa ho cambiato <span class="n" id="chn"></span></summary><div class="cbody"><ul id="chl"></ul></div></details>
     <details class="card" id="d-prima"><summary>Prima di iniziare</summary><div class="cbody" id="prima"></div></details>
-
+  </div>
+  <div class="colR">
     <h2 id="sesh"></h2>
     <div class="prog">
       <div class="pbar"><i id="pbar"></i></div>
@@ -405,6 +498,7 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
       <p>Si salva da sé e finisce nello Storico.</p>
     </section>
   </div>
+  </div>
 </section>
 
 <!-- ===================== STORICO ===================== -->
@@ -412,9 +506,14 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
   <div style="display:flex;flex-direction:column;gap:14px">
     <div class="top"><div class="brand"><span class="ring"></span><span class="wm">LE TUE SEDUTE</span></div><h1>Storico</h1></div>
     <div id="hist"></div>
+    <div class="dati">
+    <section class="card syncard">
+      <h3>iPhone e <em>PC</em></h3>
+      <div id="sync"></div>
+    </section>
     <section class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
       <h3>I tuoi <em>dati</em></h3>
-      <p style="margin:0;font-size:14px;color:var(--muted)">Sedute e carichi sono salvati <b style="color:var(--ink);font-weight:500">solo in questo browser</b>. Esporta ogni tanto il file e mettilo nella cartella <b style="color:var(--ink);font-weight:500">storico/</b> del progetto: così non li perdi e puoi passarli a un altro dispositivo con «Importa».</p>
+      <p style="margin:0;font-size:14px;color:var(--muted)">Sedute e carichi stanno in questo dispositivo (e nel gist, se è collegato). Esporta ogni tanto il file e mettilo nella cartella <b style="color:var(--ink);font-weight:500">storico/</b> del progetto: è il paracadute.</p>
       <div class="bk">
         <button type="button" class="btn pri" id="exp">Esporta file</button>
         <button type="button" class="btn" id="cpy">Copia dati</button>
@@ -423,6 +522,7 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
       </div>
       <div class="msg" id="bkmsg" aria-live="polite"></div>
     </section>
+    </div>
   </div>
 </section>
 
@@ -512,6 +612,7 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
 
 <!-- ===================== UNA COSA ALLA VOLTA ===================== -->
 <section id="focus" hidden aria-label="Una cosa alla volta">
+  <aside class="frail" id="frail" aria-label="La seduta"></aside>
   <div class="fin">
     <div class="fbars" id="fbars"></div>
     <div class="ftop"><span class="lab" id="fblk"></span><span class="cnt" id="fcnt"></span><button type="button" class="fx" id="fclose" aria-label="Torna alla lista" aria-keyshortcuts="Escape">✕</button></div>
@@ -539,14 +640,17 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
 </div>
 
 <nav class="tabbar" aria-label="Sezioni">
+  <div class="tb-brand"><span class="ring"></span><span class="wm">SCHEDA SMART</span></div>
   <div class="in" id="tabs">
     <button type="button" data-v="allena" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg>Allenati</button>
-    <button type="button" data-v="storico" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>Storico</button>
+    <button type="button" data-v="storico" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>Storico<span class="sydot" id="sydot" hidden></span></button>
     <button type="button" data-v="guida" aria-pressed="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Guida</button>
   </div>
+  <div class="tb-right"><span class="eyebrow" id="ver3"></span></div>
 </nav>
 
-<script src="dati.js?v=14"></script>
-<script src="motore.js?v=14"></script>
-<script src="tasti.js?v=14"></script>
-<script src="app.js?v=14"></script>
+<script src="dati.js?v=15"></script>
+<script src="motore.js?v=15"></script>
+<script src="tasti.js?v=15"></script>
+<script src="sync.js?v=15"></script>
+<script src="app.js?v=15"></script>
