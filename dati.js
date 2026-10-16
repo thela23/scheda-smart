@@ -7,13 +7,16 @@
  *   myo   true se si puo' fare in myo-reps (mai sui bilancieri: niente spotter)
  *   m     muscoli: 1 = diretto, 0.5 = indiretto (conteggio frazionario, Pelland 2025)
  *   load  carico di partenza (modificabile nell'app) · v / v2: video YouTube · cue: indicazione breve
+ *   paio  quale coppia di manubri: "metallo" (impugnatura 2 kg, solo dischi normali) o "leggeri" (plastica,
+ *         ~0 kg, prende anche i dischi piccoli da 2,5 e 1,25). Serve nelle superserie con due carichi diversi:
+ *         si preparano tutte e due le coppie prima di partire (dal 16/10/2026)
  * Blocco: rest = recupero in secondi · ramp = secondi di ramp-up se il blocco ha il primo bilanciere
  *
  * Se cambia la scheda: aggiornare anche docs/SCHEDA_ATTUALE.md e app/scheda.html.
  * Rinominare un esercizio spezza il suo storico (la chiave e' derivata dal nome).
  */
 var SCHEDA = {
-  versione: "v8.1 · 15/10/2026",
+  versione: "v8.2 · 16/10/2026",
   luoghi: {
     casa: {
       label: "Casa",
@@ -30,19 +33,19 @@ var SCHEDA = {
             { name: "Dead bug", v: "bxn9FBrt4-A", n: 4, reps: "10/lato", r: 10, side: true, k: "core", load: "corpo libero",
               m: { core: 1 } } ] },
           { rest: 90, ex: [
-            { name: "Floor Press manubri", v: "AqYFvc9t_vU", n: 4, reps: "8–10", r: 9, k: "man", load: "24 kg/man", rir: "1–2",
+            { name: "Floor Press manubri", paio: "metallo", v: "AqYFvc9t_vU", n: 4, reps: "8–10", r: 9, k: "man", load: "24 kg/man", rir: "1–2",
               m: { petto: 1, tricipiti: 0.5, spalle_ant: 0.5 } },
-            { name: "Rematore manubrio singolo", v: "nMFCMNKnLgQ", n: 4, reps: "8–10/lato", r: 9, side: true, k: "man", load: "24 kg", rir: "1–2",
+            { name: "Rematore manubrio singolo", paio: "metallo", v: "nMFCMNKnLgQ", n: 4, reps: "8–10/lato", r: 9, side: true, k: "man", load: "24 kg", rir: "1–2",
               m: { dorsali: 1, bicipiti: 0.5, spalle_post: 0.5 } } ] },
           { rest: 60, ex: [
-            { name: "Alzate laterali", v: "nnH63icHYXY", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "7 kg", rir: "0–1",
+            { name: "Alzate laterali", paio: "leggeri", v: "nnH63icHYXY", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "7 kg", rir: "0–1",
               cue: "Gomiti appena piegati, sali fino alle spalle, scendi in 2 s.", m: { spalle_lat: 1 } },
-            { name: "Hammer Curl", v: "8XLxfXROrTo", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
+            { name: "Hammer Curl", paio: "metallo", v: "8XLxfXROrTo", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
               m: { bicipiti: 1 } } ] },
           { rest: 45, ex: [
-            { name: "Calf Raise in piedi", v: "H6WptvjXkgw", n: 3, reps: "15–20", r: 17, k: "iso", myo: true, load: "24 kg tot", rir: "0–1",
+            { name: "Calf Raise in piedi", paio: "metallo", v: "H6WptvjXkgw", n: 3, reps: "15–20", r: 17, k: "iso", myo: true, load: "24 kg tot", rir: "0–1",
               cue: "Su un gradino: tallone giù fino al massimo allungamento, pausa 1 s in basso.", m: { polpacci: 1 } },
-            { name: "Estensioni tricipiti sopra la testa", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
+            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
               m: { tricipiti: 1 } } ] },
           { rest: 45, ex: [
             { name: "Push-up a deficit", v: "arcOjmLeq4s", n: 3, reps: "max", r: 12, k: "corpo", myo: true, load: "corpo libero", rir: "0–1",
@@ -63,15 +66,15 @@ var SCHEDA = {
           { rest: 60, ex: [
             { name: "Push-up Diamond", v: "_6AvEX9-k8E", n: 3, reps: "10–15", r: 12, k: "corpo", myo: true, load: "corpo libero", rir: "1–2",
               m: { tricipiti: 0.5, petto: 0.5 } },
-            { name: "Alzate posteriori da seduto", v: "l7y9jIKD1Ls", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "5 kg", rir: "0–1",
+            { name: "Alzate posteriori da seduto", paio: "leggeri", v: "l7y9jIKD1Ls", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "5 kg", rir: "0–1",
               cue: "Sul bordo della sedia, petto sulle cosce. Apri le braccia di lato coi gomiti appena piegati, fino all'altezza delle spalle. Leggero, senza slancio.", m: { spalle_post: 1, dorsali: 0.5 } } ] },
           { rest: 45, ex: [
-            { name: "Calf Raise in piedi", v: "H6WptvjXkgw", n: 3, reps: "15–20", r: 17, k: "iso", myo: true, load: "26 kg tot", rir: "0–1",
+            { name: "Calf Raise in piedi", paio: "metallo", v: "H6WptvjXkgw", n: 3, reps: "15–20", r: 17, k: "iso", myo: true, load: "26 kg tot", rir: "0–1",
               cue: "Su un gradino: tallone giù fino al massimo allungamento, pausa 1 s in basso.", m: { polpacci: 1 } },
-            { name: "Curl manubri", v: "XE_pHwbst04", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
+            { name: "Curl manubri", paio: "leggeri", v: "XE_pHwbst04", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
               m: { bicipiti: 1 } } ] },
           { rest: 60, ex: [
-            { name: "Croci a terra con manubri", v: "bgC53-J-6gA", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "8 kg", rir: "0–1",
+            { name: "Croci a terra con manubri", paio: "leggeri", v: "bgC53-J-6gA", n: 3, reps: "12–15", r: 13, k: "iso", myo: true, load: "8 kg", rir: "0–1",
               cue: "Sdraiato a terra, ginocchia piegate. Gomiti appena piegati e fermi: apri finché i gomiti toccano il pavimento, poi richiudi sopra il petto. Fermi stretti.", m: { petto: 1 } },
             { name: "Sliding leg curl con asciugamano", v: "p-V7uBUHeLc", v2: "gnb_hAG1dGY", n: 3, reps: "10–12", r: 11, k: "corpo", myo: true, load: "corpo libero", rir: "1",
               cue: "Pavimento liscio, ponte tenuto, talloni al sedere, giù in 2–3 s. Più dura: una gamba → Nordic (＋).", m: { femorali: 1 } } ] }
@@ -79,24 +82,24 @@ var SCHEDA = {
 
         { id: "C", nome: "Giorno C", sub: "Gambe unilaterali + Braccia/Spalle", hue: "c", blocchi: [
           { rest: 90, ex: [
-            { name: "Bulgarian Split Squat", v: "hiLF_pF3EJM", n: 3, reps: "8–10/gamba", r: 9, side: true, k: "man", load: "2 × 9 kg", rir: "1–2",
+            { name: "Bulgarian Split Squat", paio: "metallo", v: "hiLF_pF3EJM", n: 3, reps: "8–10/gamba", r: 9, side: true, k: "man", load: "2 × 9 kg", rir: "1–2",
               m: { quadricipiti: 1, glutei: 0.5 } },
             { name: "Hollow Body Hold", v: "0yPin8hSc8o", n: 3, reps: "30 s", hold: 30, k: "core", load: "corpo libero",
               m: { core: 1 } } ] },
           { rest: 90, ramp: 75, ex: [
             { name: "Hip Thrust a terra bilanciere", v: "onl9grCVQFs", n: 3, reps: "10–12", r: 11, k: "bil", load: "70 kg", rir: "1–2",
               cue: "Pausa 1 s in alto.", m: { glutei: 1, femorali: 0.5 } },
-            { name: "Single-Leg RDL manubrio", v: "Zfr6wizR8rs", n: 3, reps: "10–12/gamba", r: 11, side: true, k: "man", load: "14 kg", rir: "1–2",
+            { name: "Single-Leg RDL manubrio", paio: "metallo", v: "Zfr6wizR8rs", n: 3, reps: "10–12/gamba", r: 11, side: true, k: "man", load: "14 kg", rir: "1–2",
               m: { femorali: 1, glutei: 0.5 } } ] },
           { rest: 75, ex: [
-            { name: "Alzate laterali", v: "nnH63icHYXY", n: 3, reps: "12–20", r: 15, k: "iso", myo: true, load: "7 kg", rir: "0–1",
+            { name: "Alzate laterali", paio: "leggeri", v: "nnH63icHYXY", n: 3, reps: "12–20", r: 15, k: "iso", myo: true, load: "7 kg", rir: "0–1",
               cue: "Gomiti appena piegati, sali fino alle spalle, scendi in 2 s.", m: { spalle_lat: 1 } },
             { name: "Trazioni presa prona", v: "MhokcbRLP5w", n: 3, reps: "6–10", r: 8, k: "corpo", load: "corpo libero", rir: "1–2",
               m: { dorsali: 1, bicipiti: 0.5 } } ] },
           { rest: 45, ex: [
-            { name: "Estensioni tricipiti sopra la testa", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
+            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
               m: { tricipiti: 1 } },
-            { name: "Curl manubri", v: "XE_pHwbst04", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
+            { name: "Curl manubri", paio: "metallo", v: "XE_pHwbst04", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
               m: { bicipiti: 1 } } ] }
         ] }
       ]

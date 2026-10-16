@@ -285,6 +285,12 @@ body.focus #timer{display:none!important}
 .fnc{flex:0 0 auto;font:500 12px/1 var(--body);padding:6px 9px;border-radius:9px;color:var(--ink);font-variant-numeric:tabular-nums;
   background:var(--dcs);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dc) 45%,transparent)}
 .fcar{font-weight:600;color:var(--ink)}
+/* le due coppie di manubri: metallo (grigio acciaio) e leggeri (azzurro) */
+.paio::before,.fnc i::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;background:#b9b5c6}
+.paio-leggeri::before{background:#8fd3ff}
+.chip.paio{color:var(--muted)}
+.fpaio{text-align:center;margin:-4px 0 10px;font:500 12px/1 var(--body);color:var(--muted)}
+.fnc i{font-style:normal;font-weight:500;margin-left:8px;color:var(--muted)}
 #focus .keyrow{width:100%;max-width:520px;margin:12px auto 0}
 .fend{text-align:center}
 .fend h2{font-size:44px;min-height:0}
@@ -665,9 +671,9 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
   <div class="tb-right"><span class="eyebrow" id="ver3"></span></div>
 </nav>
 
-<script src="dati.js?v=19"></script>
-<script src="motore.js?v=19"></script>
-<script src="tasti.js?v=19"></script>
-<script src="sync.js?v=19"></script>
-<script src="sequenza.js?v=19"></script>
-<script src="app.js?v=19"></script>
+<script src="dati.js?v=20"></script>
+<script src="motore.js?v=20"></script>
+<script src="tasti.js?v=20"></script>
+<script src="sync.js?v=20"></script>
+<script src="sequenza.js?v=20"></script>
+<script src="app.js?v=20"></script>

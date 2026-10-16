@@ -56,5 +56,18 @@ for (const l of Object.keys(D.SCHEDA.luoghi)) for (const g of D.SCHEDA.luoghi[l]
     if (recApp !== recMotore) P(`${nome}: ${recApp} recuperi nell'app, ${recMotore} nel motore del tempo`);
   }
 }
+// 9. manubri (Casa): ogni esercizio coi manubri dice quale coppia usare, e in una superserie due carichi diversi
+//    non finiscono mai sulla stessa coppia (se no tocca smontare i dischi a ogni giro)
+const manubri = e => e.k === "man" || (e.k === "iso" && /kg/.test(e.load || ""));
+for (const g of D.SCHEDA.luoghi.casa.giorni) g.blocchi.forEach((b, bi) => {
+  const m = b.ex.filter(manubri);
+  m.forEach(e => { if (!/^(metallo|leggeri)$/.test(e.paio || "")) P(`Casa ${g.id} blocco ${bi + 1}: ${e.name} senza coppia di manubri`); });
+  for (let i = 0; i < m.length; i++) for (let k = i + 1; k < m.length; k++) {
+    const ka = parseFloat(String(m[i].load).replace(",", ".").match(/(\d+(?:\.\d+)?)\s*kg/)[1]), kb = parseFloat(String(m[k].load).replace(",", ".").match(/(\d+(?:\.\d+)?)\s*kg/)[1]);
+    const perMan = (e, v) => /tot/.test(e.load) ? v / 2 : v;
+    if (perMan(m[i], ka) !== perMan(m[k], kb) && m[i].paio === m[k].paio) P(`Casa ${g.id} blocco ${bi + 1}: ${m[i].name} e ${m[k].name} hanno carichi diversi sulla stessa coppia`);
+  }
+});
+
 console.log(problemi ? `\n${problemi} problemi su ${sedute} sedute simulate` : `Nessun problema (${sedute} sedute simulate)`);
 process.exitCode = problemi ? 1 : 0;

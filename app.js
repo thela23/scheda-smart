@@ -238,6 +238,9 @@
   }
 
   /* ===================== blocchi ed esercizi ===================== */
+  // le due coppie di manubri di casa (dati.js → paio): nelle superserie con due carichi si preparano tutte e due
+  var PAIO = { metallo: "manubri di metallo", leggeri: "manubri leggeri" };
+  function paioHTML(e, cls) { return e.paio && PAIO[e.paio] ? '<span class="' + cls + ' paio-' + e.paio + '">' + PAIO[e.paio] + '</span>' : ''; }
   function exHTML(x, key, bi, ei, s) {
     var e = x.e, rec = s && s.ex ? s.ex[key] : null;
     if (rec && !!rec.myo !== !!x.myo) rec = Object.assign({}, rec, { done: [] });
@@ -251,6 +254,7 @@
     else chips = '<span class="chip' + (x.n < e.n ? ' less' : '') + '">' + x.n + ' × ' + esc(e.reps) + '</span>';
     if (x.n > 0) {
       if (load) chips += '<button type="button" class="chip load' + (modificato(key) ? ' mod' : '') + '" data-ed="1">' + esc(load) + '<span class="pen">✎</span></button>';
+      chips += paioHTML(e, "chip paio");
       if (e.rir) chips += '<span class="chip">RIR ' + esc(e.rir) + '</span>';
       if (sug && sug.tipo === "carico") chips += '<button type="button" class="chip sug" data-sug="' + esc(sug.nuovo) + '" title="L\'ultima volta hai chiuso tutto al limite alto">↑ prova ' + esc(sug.nuovo) + '</button>';
       if (sug && sug.tipo === "variante") chips += '<span class="chip sug">↑ variante più dura</span>';
@@ -586,7 +590,7 @@
       var cosa = !dopo ? 'basta' : xDopo.myo ? (dopo.j === 0 ? 'attivazione' : 'mini-serie ' + dopo.j) : (dopo.j + 1) + 'ª serie';
       hero = '<div class="fserie">' + (breve ? 'Respiri' : 'Recupero') + ', poi <em>' + cosa + '</em></div>' +
         '<div class="fhuge rest" id="fT">' + fmtT((TIMER.fine - Date.now()) / 1000) + '</div><div class="ftarget">' + esc(TIMER.label) +
-        (carDopo ? ' · <b class="fcar">' + esc(carDopo) + '</b>' : '') + '</div>';
+        (carDopo ? ' · <b class="fcar">' + esc(carDopo) + '</b>' + (nx.paio ? ' · ' + PAIO[nx.paio] : '') : '') + '</div>';
       ctl = '<div class="freps"><button type="button" class="key sm" data-f="piu"><span class="cap"><span class="kw">+15 s</span></span></button></div><div class="fhint">Fatta salta il recupero</div>';
       dw.textContent = "Salta";
     } else if (finita) {
@@ -626,7 +630,7 @@
         var pq = F.q[pk], pe = R.blocchi[pq.bi].ex[pq.ei].e, pcar = caricoDi(KEYS[pq.bi][pq.ei], pe);
         ctl += '<button type="button" class="fnext" data-f="vai" data-p="' + pk + '"><span class="fnl">' +
           (pq.bi === it.bi && pq.j === it.j ? 'Subito dopo' : 'Poi') + '</span><span class="fnn">' + esc(pe.name) + '</span>' +
-          (pcar ? '<span class="fnc">' + esc(pcar) + '</span>' : '') + '</button>';
+          (pcar ? '<span class="fnc">' + esc(pcar) + (pe.paio ? '<i class="paio-' + pe.paio + '">' + (pe.paio === "metallo" ? "metallo" : "leggeri") + '</i>' : '') + '</span>' : '') + '</button>';
       }
       ctl += '<div class="fload">' +
         (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">−' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') +
@@ -634,6 +638,7 @@
         (num ? (function () { var mm = numMatch(load); return esc(load.slice(0, mm.index)) + esc(load.substr(mm.index, mm[1].length)) + '<small>' + esc(load.slice(mm.index + mm[1].length).trim()) + '</small>'; })() : esc(load || "—")) +
         '<span class="pen" aria-hidden="true">✎</span></button>' +
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
+      if (e.paio) ctl += '<div class="fpaio">' + paioHTML(e, "paio") + '</div>';
       var tr = tastiRip(e, x, it.j);
       if (e.hold) ctl += '<div class="freps"><button type="button" class="key sm' + (TEN ? ' on' : '') + '" data-f="tenuta"><span class="cap"><span class="kw">' +
         (TEN ? 'Ferma' : '▶ Avvia ' + e.hold + ' s') + '</span></span></button></div>';
