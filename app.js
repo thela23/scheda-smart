@@ -610,7 +610,9 @@
       }
       ctl += '<div class="fload">' +
         (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">−' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') +
-        '<div class="val' + (num ? '' : ' txt') + '" id="fld">' + esc(load || "—") + '</div>' +
+        '<button type="button" class="val' + (num ? '' : ' txt') + '" id="fld" data-f="scrivi" aria-label="Scrivi il carico: ' + esc(load || "nessuno") + '">' +
+        (num ? (function () { var mm = numMatch(load); return esc(load.slice(0, mm.index)) + esc(load.substr(mm.index, mm[1].length)) + '<small>' + esc(load.slice(mm.index + mm[1].length).trim()) + '</small>'; })() : esc(load || "—")) +
+        '<span class="pen" aria-hidden="true">✎</span></button>' +
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
       var tr = tastiRip(e, x, it.j);
       if (tr.length) ctl += '<div class="freps" role="group" aria-label="Ripetizioni fatte">' + tr.map(function (n) {
@@ -628,6 +630,34 @@
     $("#fprev").disabled = !!TIMER || finita || F.pos === 0;
     $("#fnext").disabled = !!TIMER || finita || F.pos >= F.q.length - 1;
     if (anim) { Tasti.land($("#fname"), { dy: 12 }); Tasti.land($("#fbig") || $("#fT") || $(".fend"), { dy: 16 }); }
+  }
+
+  // carico scritto a mano (dischi strani come 1,25 kg): tocchi il numero, si apre il tastierino numerico.
+  // Cambia solo il numero e lascia il resto ("24 kg/man" → "23,25 kg/man"); se non c'è un numero ("corpo libero")
+  // si scrive il testo intero ("zaino 5 kg").
+  function scriviCarico(key, e) {
+    var cur = caricoDi(key, e), m = numMatch(cur), box = $("#fld"); if (!box) return;
+    var unita = m ? cur.slice(m.index + m[1].length).trim() : "";
+    var f = document.createElement("form");
+    f.className = "fedit"; f.id = "fedit";
+    f.innerHTML = '<input id="fin" ' + (m ? 'inputmode="decimal" enterkeyhint="done"' : 'enterkeyhint="done"') + ' autocomplete="off" aria-label="Carico" value="' +
+      esc(m ? m[1].replace(".", ",") : cur) + '">' + (unita ? '<span class="un">' + esc(unita) + '</span>' : '') + '<button type="submit" class="btn pri">OK</button>';
+    box.replaceWith(f);
+    var inp = $("#fin"), fatto2 = false;
+    inp.focus(); inp.select();
+    var conferma = function () {
+      if (fatto2) return; fatto2 = true;
+      var v = inp.value.trim(), nuovo = cur;
+      if (m) {
+        var n = parseFloat(v.replace(",", "."));
+        if (isFinite(n) && n >= 0 && n <= 500) nuovo = cur.slice(0, m.index) + String(Math.round(n * 100) / 100).replace(".", ",") + cur.slice(m.index + m[1].length);
+      } else if (v) nuovo = v;
+      if (nuovo !== cur) { applicaCarico({ key: key, el: null }, nuovo); Tasti.play("down"); Tasti.haptic(); }
+      renderF(); if (nuovo !== cur) Tasti.land($("#fld"), { dy: 6, fade: .2 });
+    };
+    f.addEventListener("submit", function (ev) { ev.preventDefault(); conferma(); });
+    inp.addEventListener("blur", function () { setTimeout(conferma, 120); });   // tocchi fuori: vale come OK
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { fatto2 = true; renderF(); } });
   }
 
   function prossima(da) {
@@ -692,6 +722,7 @@
     var it = F.q[F.pos], x = R.blocchi[it.bi].ex[it.ei], key = KEYS[it.bi][it.ei], f = t.dataset.f;
     if (f === "piu") { piu15(); return; }
     if (f === "vai") { Tasti.play("tick"); F.pos = +t.dataset.p; F.pick = null; renderF(true); return; }
+    if (f === "scrivi") { scriviCarico(key, x.e); return; }
     if (f === "meno" || f === "piu1") {
       var load = caricoDi(key, x.e);
       applicaCarico({ key: key, el: null }, bump(load, f === "meno" ? -1 : 1, stepDi(x.e, load)));

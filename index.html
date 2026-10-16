@@ -265,7 +265,15 @@ body.focus #timer{display:none!important}
 .fload{display:flex;align-items:center;gap:10px;margin:0 0 10px}
 .fload .key.sm{flex:0 0 64px}
 .fload .val{flex:1;text-align:center;font:400 36px/1 var(--serif);font-variant-numeric:tabular-nums}
+.fload .val{appearance:none;border:0;background:none;cursor:pointer;color:var(--ink);padding:6px 4px;border-radius:12px;transition:background .2s;white-space:nowrap;min-width:0}
+.fload .val:hover{background:var(--surface)}
+.fload .val .pen{font:400 13px/1 var(--body);color:var(--faint);margin-left:6px;vertical-align:middle}
 .fload .val.txt{font:500 14px/1.2 var(--body);color:var(--muted)}
+.fedit{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.fedit input{flex:1;min-width:0;height:54px;border:0;border-radius:13px;background:rgba(0,0,0,.3);box-shadow:inset 0 0 0 2px var(--accent);
+  text-align:center;font:400 30px/1 var(--serif);color:var(--ink);font-variant-numeric:tabular-nums;padding:0 10px}
+.fedit .un{font:500 12px/1 var(--body);color:var(--muted)}
+.fedit .btn{min-height:54px;padding:0 18px}
 .fload .val small{font:500 12px/1 var(--body);color:var(--muted);margin-left:4px}
 .freps{display:flex;gap:7px;margin-bottom:4px}
 .fhint{text-align:center;color:var(--faint);font-size:12px;margin-top:8px;min-height:16px}
@@ -544,7 +552,7 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
       <ol>
         <li>Scegli <b>Casa</b> o <b>Vacanza</b>. Il giorno è già quello che tocca, in base all'ultima seduta.</li>
         <li>Sposta lo slider sui <b>minuti che hai</b>. La seduta si ricalcola tenendo più stimolo possibile.</li>
-        <li>Premi <b>Inizia</b>: un esercizio alla volta, a tutto schermo. Imposta il carico con <b>− / +</b>, tocca le <b>ripetizioni</b> fatte e premi <b>Fatta</b>.</li>
+        <li>Premi <b>Inizia</b>: un esercizio alla volta, a tutto schermo. Imposta il carico con <b>− / +</b> oppure <b>tocca il numero</b> e scrivilo (anche 23,25), tocca le <b>ripetizioni</b> fatte e premi <b>Fatta</b>.</li>
         <li>Quando chiudi un giro della superserie il <b>recupero parte da solo</b> e suona alla fine. <b>Fatta</b> lo salta, <b>+15 s</b> lo allunga.</li>
         <li>La <b>✕</b> in alto torna alla lista, dove vedi tutta la seduta e puoi scrivere note e ripetizioni a mano.</li>
         <li>Sul PC: <b>spazio</b> = Fatta, <b>← →</b> = esercizio prima o dopo, <b>Esc</b> = lista.</li>
@@ -657,8 +665,8 @@ select{flex:1 1 190px;min-width:0;height:44px;border:0;box-shadow:inset 0 0 0 1p
   <div class="tb-right"><span class="eyebrow" id="ver3"></span></div>
 </nav>
 
-<script src="dati.js?v=17"></script>
-<script src="motore.js?v=17"></script>
-<script src="tasti.js?v=17"></script>
-<script src="sync.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="dati.js?v=18"></script>
+<script src="motore.js?v=18"></script>
+<script src="tasti.js?v=18"></script>
+<script src="sync.js?v=18"></script>
+<script src="app.js?v=18"></script>
