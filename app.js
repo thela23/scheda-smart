@@ -297,7 +297,8 @@
       var live = b.ex.filter(function (x) { return x.n > 0; }).length;
       var giri = Math.max.apply(null, b.ex.map(function (x) { return x.myo ? 1 : x.n; }));
       var rest = giri < 2 ? '' : ' · rec ' + (b.rest < b.restPieno ? '<s>' + b.restPieno + 's</s>' + b.rest + ' s' : b.rest + ' s');
-      var ramp = b.ramp ? '<div class="ramp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '. Non conta come serie.</div>' : '';
+      var ramp = b.ramp ? '<div class="ramp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '. Non conta come serie.</div>' :
+        b.ex.some(function (x) { return x.n > 0 && x.e.k === "bil"; }) ? '<div class="ramp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico sul bilanciere. Non conta come serie.</div>' : '';
       return '<div class="block" data-b="' + bi + '"><div class="bh"><span>Blocco ' + n + ' · ' + (live > 1 ? 'superserie' : 'esercizio singolo') + '</span>' +
         '<span class="t">~' + Math.round(b.tempo / 60) + '′' + rest + '</span></div>' + ramp +
         b.ex.map(function (x, ei) { return exHTML(x, KEYS[bi][ei], bi, ei, s); }).join("") +
@@ -365,21 +366,12 @@
   $("#tstop").addEventListener("click", function () { fermaTimer(); renderF(true); });
   $("#tplus").addEventListener("click", piu15);
 
-  // recupero automatico: quando chiudi un giro della superserie
-  function recuperoAuto(bi, j, x) {
-    var B = R.blocchi[bi], s = sedutaOggi(); if (!s) return;
-    var live = B.ex.map(function (y, i) { return { y: y, i: i }; }).filter(function (o) { return o.y.n > 0; });
-    if (x.myo) {
-      if (live.length === 1 && j < 3) avviaTimer(15, "Respiri, poi mini-serie " + (j + 1));
-      return;
-    }
-    var dritti = live.filter(function (o) { return !o.y.myo; });
-    var giri = Math.max.apply(null, dritti.map(function (o) { return o.y.n; }));
-    if (j >= giri - 1) return;
-    var chiuso = dritti.filter(function (o) { return o.y.n > j; }).every(function (o) {
-      var r = s.ex[KEYS[bi][o.i]]; return r && r.done && r.done[j];
-    });
-    if (chiuso) avviaTimer(B.rest, "Recupero · poi giro " + (j + 2) + " di " + giri);
+  // recupero automatico dopo una serie: le regole sono in sequenza.js (le stesse del motore del tempo)
+  function recuperoAuto(bi, ei, j) {
+    if (!sedutaOggi()) return;
+    var q = Sequenza.coda(R), i = q.findIndex(function (v) { return v.bi === bi && v.ei === ei && v.j === j; });
+    var r = i < 0 ? null : Sequenza.riposo(R, q, i, fatto);
+    if (r) avviaTimer(r.sec, r.testo);
   }
 
   // schermo acceso durante la seduta (se il browser lo permette)
@@ -444,7 +436,7 @@
       r.done[j] = on; salva(s); Tasti.haptic();
       set.setAttribute("aria-pressed", on); set.textContent = on ? "✓" : set.dataset.txt;
       progresso(); tieniAcceso(); renderSelettori();
-      if (on) recuperoAuto(c.bi, j, c.x);
+      if (on) recuperoAuto(c.bi, c.ei, j);
       return;
     }
     if (t.closest("[data-ed]")) { c = exCtx(t); var ed = $(".ledit", c.el); ed.hidden = !ed.hidden; if (!ed.hidden) $(".lval", ed).focus(); return; }
@@ -495,17 +487,8 @@
     return r && !!r.myo === !!x.myo ? r : null;   // cambiata modalità (myo/normale): le serie ripartono, come nella lista
   }
   function fatto(it) { var r = recDi(it.bi, it.ei); return !!(r && r.done && r.done[it.j]); }
-  // l'ordine della superserie: serie 1 di A, serie 1 di B, serie 2 di A… (myo: S, S, mini 1, mini 1…)
-  function codaF() {
-    var q = [];
-    R.blocchi.forEach(function (b, bi) {
-      if (!b.tempo) return;
-      var live = []; b.ex.forEach(function (x, ei) { if (x.n > 0) live.push({ x: x, ei: ei, tot: x.myo ? 4 : x.n }); });
-      var giri = Math.max.apply(null, live.map(function (o) { return o.tot; }).concat([0]));
-      for (var j = 0; j < giri; j++) live.forEach(function (o, k) { if (j < o.tot) q.push({ bi: bi, ei: o.ei, j: j, primo: j === 0 && k === 0 }); });
-    });
-    return q;
-  }
+  // l'ordine delle serie: sequenza.js (superserie a giri, myo di fila, come nel motore del tempo)
+  function codaF() { return Sequenza.coda(R); }
   // i tasti delle ripetizioni: il range della scheda più una (se ne fai di più, si vede)
   function tastiRip(e, x, j) {
     if (e.hold) return [];
@@ -532,9 +515,42 @@
   // "8–10/lato" → "8–10 ripetizioni per lato"
   function ripTesto(reps) { var r = String(reps); return /\//.test(r) ? esc(r.replace(/\/\s*(\w+)/, " ripetizioni per $1")) : esc(r) + " ripetizioni"; }
 
+  /* cronometro delle tenute (plank, hollow hold): 3 s per mettersi in posizione, poi il conto alla rovescia */
+  var TEN = null;
+  function tenutaTesto() {
+    var ora = Date.now();
+    if (ora < TEN.via) { TEN.pronto = true; return String(Math.ceil((TEN.via - ora) / 1000)); }
+    TEN.pronto = false; return String(Math.max(0, Math.ceil((TEN.fine - ora) / 1000)));
+  }
+  function avviaTenuta(id, sec) {
+    fermaTenuta();
+    var t0 = Date.now();
+    TEN = { id: id, via: t0 + 3000, fine: t0 + 3000 + sec * 1000, s: null, pronto: true };
+    TEN.timer = setInterval(function () {
+      if (!TEN) return;
+      var fase = Date.now() < TEN.via ? "pronto" : "tieni";
+      if (fase !== TEN.fase) {                       // da «in posizione» a «tieni»: suono deciso e ridisegno
+        var via = TEN.fase === "pronto"; TEN.fase = fase; TEN.s = null;
+        if (via) { Tasti.play("space"); Tasti.haptic(); }
+        renderF(true); return;
+      }
+      var testo = tenutaTesto(), el = $("#fbig");
+      if (testo !== TEN.s) {
+        TEN.s = testo;
+        if (el) { el.textContent = testo; Tasti.land(el, { dy: 5, fade: .3 }); }
+        if (fase === "pronto" || (+testo <= 3 && +testo > 0)) Tasti.play("tick", { vol: .55 });
+      }
+      if (Date.now() >= TEN.fine) { fermaTenuta(); Tasti.play("gong"); Tasti.haptic([200, 100, 200]); renderF(true); }
+    }, 100);
+    renderF(true);
+  }
+  function fermaTenuta() { if (TEN) clearInterval(TEN.timer); TEN = null; }
+
   function renderF(anim) {
     if (!F.open || !R) return;
     F.q = codaF();
+    // spostandoti su un'altra serie il cronometro della tenuta si ferma
+    if (TEN && F.q[F.pos] && TEN.id !== KEYS[F.q[F.pos].bi][F.q[F.pos].ei] + ":" + F.q[F.pos].j) fermaTenuta();
     if (!F.q.length) { chiudiF(); return; }
     if (F.pos >= F.q.length) F.pos = F.q.length - 1;
     var it = F.q[F.pos], b = R.blocchi[it.bi], x = b.ex[it.ei], e = x.e, key = KEYS[it.bi][it.ei];
@@ -566,7 +582,9 @@
       var dopo = !fatto(it) ? it : F.q.filter(function (q) { return !fatto(q); })[0], nx = dopo ? R.blocchi[dopo.bi].ex[dopo.ei].e : e;
       $("#fname").textContent = nx.name; $("#fvid").href = VID(nx.v); $("#fcue").textContent = "";
       var carDopo = dopo ? caricoDi(KEYS[dopo.bi][dopo.ei], nx) : "";
-      hero = '<div class="fserie">Recupero, poi <em>' + (dopo ? (dopo.j + 1) + 'ª serie' : 'basta') + '</em></div>' +
+      var xDopo = dopo ? R.blocchi[dopo.bi].ex[dopo.ei] : null, breve = TIMER.tot <= 20;
+      var cosa = !dopo ? 'basta' : xDopo.myo ? (dopo.j === 0 ? 'attivazione' : 'mini-serie ' + dopo.j) : (dopo.j + 1) + 'ª serie';
+      hero = '<div class="fserie">' + (breve ? 'Respiri' : 'Recupero') + ', poi <em>' + cosa + '</em></div>' +
         '<div class="fhuge rest" id="fT">' + fmtT((TIMER.fine - Date.now()) / 1000) + '</div><div class="ftarget">' + esc(TIMER.label) +
         (carDopo ? ' · <b class="fcar">' + esc(carDopo) + '</b>' : '') + '</div>';
       ctl = '<div class="freps"><button type="button" class="key sm" data-f="piu"><span class="cap"><span class="kw">+15 s</span></span></button></div><div class="fhint">Fatta salta il recupero</div>';
@@ -592,9 +610,11 @@
         big = String(it.j + 1);
         tgt = (e.hold ? esc(e.reps) : ripTesto(e.reps)) + (e.rir ? ' · RIR ' + esc(e.rir) : '') + (live > 1 || x.n > 1 ? ' · rec ' + b.rest + ' s' : '');
       }
+      if (TEN && TEN.id === key + ":" + it.j) { big = tenutaTesto(); lab = TEN.pronto ? 'Mettiti in <em>posizione</em>' : '<em>Tieni</em>'; }
       hero = '<div class="fserie">' + lab + (gia ? ' · <span style="color:var(--ok)">fatta</span>' : '') + '</div>' +
         '<div class="fhuge' + (big === "S" ? ' word' : '') + '" id="fbig">' + big + '</div><div class="ftarget">' + tgt + '</div>' +
-        (it.primo && b.ramp ? '<div class="framp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '</div>' : '');
+        (it.j === 0 && e.k === "bil" ? (b.ramp ? '<div class="framp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '</div>'
+          : '<div class="framp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico, non conta</div>') : '');
       // il prossimo esercizio col suo carico: in superserie si preparano tutti e due prima di partire
       var pk = -1;
       for (var kk = 1; kk < F.q.length; kk++) {
@@ -615,6 +635,8 @@
         '<span class="pen" aria-hidden="true">✎</span></button>' +
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
       var tr = tastiRip(e, x, it.j);
+      if (e.hold) ctl += '<div class="freps"><button type="button" class="key sm' + (TEN ? ' on' : '') + '" data-f="tenuta"><span class="cap"><span class="kw">' +
+        (TEN ? 'Ferma' : '▶ Avvia ' + e.hold + ' s') + '</span></span></button></div>';
       if (tr.length) ctl += '<div class="freps" role="group" aria-label="Ripetizioni fatte">' + tr.map(function (n) {
         return '<button type="button" class="key sm' + (F.pick === n ? ' on' : '') + '" data-r="' + n + '" aria-pressed="' + (F.pick === n) + '"><span class="cap"><span class="kw">' + n + '</span></span></button>';
       }).join("") + '</div>';
@@ -675,6 +697,7 @@
   }
   function chiudiF(daIndietro) {
     if (!F.open) return;
+    fermaTenuta();
     F.open = false; $("#focus").hidden = true; document.body.classList.remove("focus");
     renderBlocchi();
     if (!daIndietro && history.state && history.state.f) { F.salta = true; try { history.back(); } catch (_) { F.salta = false; } }
@@ -699,7 +722,7 @@
     F.pick = null; F.pos = prossima(F.pos);
     renderBlocchi(); renderSelettori();
     var prima = TIMER;
-    if (!gia) recuperoAuto(it.bi, it.j, x);   // fa partire il recupero (e ridisegna) se il giro è chiuso
+    if (!gia) recuperoAuto(it.bi, it.ei, it.j);   // fa partire il recupero (e ridisegna) se serve
     if (TIMER === prima) renderF(true);
   }
   $("#fdone").addEventListener("click", function () {
@@ -723,6 +746,7 @@
     if (f === "piu") { piu15(); return; }
     if (f === "vai") { Tasti.play("tick"); F.pos = +t.dataset.p; F.pick = null; renderF(true); return; }
     if (f === "scrivi") { scriviCarico(key, x.e); return; }
+    if (f === "tenuta") { if (TEN) { fermaTenuta(); renderF(); } else avviaTenuta(key + ":" + it.j, x.e.hold); return; }
     if (f === "meno" || f === "piu1") {
       var load = caricoDi(key, x.e);
       applicaCarico({ key: key, el: null }, bump(load, f === "meno" ? -1 : 1, stepDi(x.e, load)));
