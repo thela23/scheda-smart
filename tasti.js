@@ -118,7 +118,9 @@ var Tasti = (function () {
     o = o || {}; var vol = nn(o.vol, 1), rate = nn(o.rate, 1);
     if (!P.on || !P.volume) return;
     if (name === "up") vol = Math.min(1, vol * nn((SWITCHES[P.switch] || SWITCHES.thock).upVol, 1));
-    synth(); var ctx = audio(); if (!ctx) return; buffers();
+    synth(); var ctx = audio(); if (!ctx) return;
+    if (ctx.state === "closed") { rifai(); ctx = SND.ctx; if (!ctx) return; }
+    buffers();
     var start = function () {
       var src = ctx.createBufferSource(), g = ctx.createGain(), takes = SND.bank[name];
       src.buffer = takes[Math.floor(Math.random() * takes.length)]; src.playbackRate.value = rate * (1 + (Math.random() - .5) * .03);
@@ -132,6 +134,29 @@ var Tasti = (function () {
     };
     when();
   }
+  /* ---------- l'audio che si blocca dopo una chiamata ----------
+   * Su iPhone una telefonata (o un'altra app che prende l'audio) mette il contesto audio in "interrupted" o
+   * "suspended", e a volte non riparte più da solo: niente tasti, niente campana di fine recupero.
+   * A ogni tocco e quando torni sull'app: se l'audio non è "running" si prova a riprenderlo; se dopo 300 ms
+   * non è ripartito, si butta e se ne crea uno nuovo (i suoni sono già calcolati, si ricaricano al volo). */
+  function rifai() {
+    var vecchio = SND.ctx;
+    SND.ctx = null; SND.out = null; SND.bankFor = null; SND.rifatti = (SND.rifatti || 0) + 1;
+    try { if (vecchio && vecchio.close) vecchio.close().catch(function () {}); } catch (_) {}
+    if (P.on) audio();
+  }
+  function sveglia(daTocco) {
+    var c = SND.ctx; if (!c || c.state === "running") return;
+    if (c.state === "closed") { if (daTocco) rifai(); return; }
+    try { c.resume().catch(function () {}); } catch (_) {}
+    // dentro un tocco si può ricreare subito; altrimenti si aspetta il prossimo tocco
+    setTimeout(function () { if (SND.ctx === c && c.state !== "running" && daTocco) rifai(); }, 300);
+  }
+  addEventListener("pointerdown", function () { sveglia(true); }, true);
+  addEventListener("touchend", function () { sveglia(true); }, true);
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") sveglia(false); });
+  window.addEventListener("pageshow", function () { sveglia(false); });
+
   // l'audio si apre in silenzio al primo tocco, così il primo suono è intero
   (function () {
     var go = function () { removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); synth(); if (P.on) audio(); };
@@ -182,5 +207,7 @@ var Tasti = (function () {
     setTimeout(function () { k.classList.remove("down"); play("up", { vol: .7 }); k.click(); }, 85);
   }
 
-  return { play: play, haptic: haptic, land: land, press: press, prefs: prefs, set: set };
+  // per le verifiche: stato dell'audio e quante volte è stato ricreato
+  function stato() { return { audio: SND.ctx ? SND.ctx.state : "nessuno", rifatti: SND.rifatti || 0 }; }
+  return { play: play, haptic: haptic, land: land, press: press, prefs: prefs, set: set, stato: stato, _ctx: function () { return SND.ctx; } };
 })();

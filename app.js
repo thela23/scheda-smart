@@ -62,7 +62,12 @@
       });
     });
   }
-  function salvaUI() { scrivi(LS.ui, { data: oggi(), vista: vista, luogo: luogo, day: dayIx, budget: budget }); }
+  // ATTIVA: data della seduta che stai continuando dallo Storico (null = la seduta di oggi)
+  var ATTIVA = null;
+  function salvaUI() {
+    scrivi(LS.ui, { data: oggi(), vista: vista, luogo: luogo, day: dayIx, budget: budget, attiva: ATTIVA,
+      focus: !!(typeof F !== "undefined" && F && F.open) });
+  }
 
   /* ===================== carichi ===================== */
   function caricoDi(key, e) { var v = CARICHI.loads[key]; return (v !== undefined && v !== "") ? v : (e.load || ""); }
@@ -88,11 +93,12 @@
   }
 
   /* ===================== sedute ===================== */
-  function sid() { return oggi() + "_" + luogo + "_" + G().id; }
+  function dataSeduta() { return ATTIVA || oggi(); }
+  function sid() { return dataSeduta() + "_" + luogo + "_" + G().id; }
   function sedutaOggi() { return SEDUTE[sid()] || null; }
   function assicuraSeduta() {
     var id = sid();
-    if (!SEDUTE[id]) SEDUTE[id] = { date: oggi(), tab: luogo, day: G().id, dayName: G().nome, ts: Date.now(), ex: {}, comment: "" };
+    if (!SEDUTE[id]) SEDUTE[id] = { date: dataSeduta(), tab: luogo, day: G().id, dayName: G().nome, ts: Date.now(), ex: {}, comment: "" };
     var s = SEDUTE[id];
     if (R) { s.budget = budget; s.minuti = R.minuti; s.stimolo = Math.round(R.stimolo * 100); s.pieno = full; }
     return s;
@@ -118,9 +124,15 @@
     return d.filter(Boolean).length;
   }
   function haSerie(r) { return !!(r && r.done && r.done.some(Boolean)); }
+  // seduta lasciata a metà: serie fatte meno di quelle previste (come lo Storico conta «fatte / totali»)
+  function incompleta(s) {
+    var tot = 0, dn = 0;
+    Object.keys(s.ex || {}).forEach(function (k) { var r = s.ex[k], c = serieEff(r); tot += r.myo ? 2.5 : (r.tot || c); dn += c; });
+    return dn > 0 && dn < tot - 0.01;
+  }
 
   function ultimaVolta(key) {
-    var t = oggi(), best = null;
+    var t = dataSeduta(), best = null;
     Object.keys(SEDUTE).forEach(function (id) {
       var s = SEDUTE[id];
       if (!s || !s.ex || s.date >= t) return;
@@ -195,11 +207,20 @@
     document.documentElement.style.setProperty("--dcs", "var(--" + g.hue + "-soft)");
     $("#titolo").innerHTML = esc(g.nome) + '<span class="sub">' + sottotitolo(g.sub) + '</span>';
     var sg = giornoSuggerito(luogo), h = "";
+    if (ATTIVA) {
+      $("#hint").innerHTML = '<b>Stai continuando la seduta del ' + dmy(ATTIVA) + '.</b> <button type="button" class="btn-sm" id="aoggi">Torna a oggi</button>';
+      return;
+    }
     if (sg.ultima) {
       var u = sg.ultima, nomeU = (L().giorni.filter(function (x) { return x.id === u.day; })[0] || {}).nome || u.dayName;
       h = u.date === oggi() ? "Seduta di oggi: <b>" + esc(nomeU) + "</b>." :
         "Ultima seduta: <b>" + esc(nomeU) + "</b> del " + dmy(u.date) + (sg.ix === dayIx ? " → oggi tocca il <b>" + esc(g.nome) + "</b>." : ".");
     } else h = "Nessuna seduta ancora registrata qui: si parte dal <b>" + esc(L().giorni[0].nome) + "</b>.";
+    // l'ultima seduta è rimasta a metà (e non è quella che hai davanti): si può riprendere con un tocco
+    if (sg.ultima && incompleta(sg.ultima)) {
+      var idU = sg.ultima.date + "_" + sg.ultima.tab + "_" + sg.ultima.day;
+      if (idU !== sid()) h += ' <button type="button" class="btn-sm" data-riprendi="' + esc(idU) + '">Riprendi la seduta interrotta</button>';
+    }
     $("#hint").innerHTML = h;
   }
 
@@ -343,7 +364,7 @@
   function avviaTimer(sec, label) {
     fermaTimer();
     TIMER = { fine: Date.now() + sec * 1000, tot: sec, label: label, id: setInterval(tick, 250), s: null };
-    $("#timer").hidden = false; tick(); renderF(true);
+    salvaTimer(); $("#timer").hidden = false; tick(); renderF(true);
   }
   function tick() {
     if (!TIMER) return;
@@ -358,15 +379,23 @@
     if (ft && nuovo) { ft.textContent = fmtT(left); Tasti.land(ft, { dy: 5, fade: .3 }); }
   }
   function fineTimer() {
-    clearInterval(TIMER.id); TIMER = null;
+    clearInterval(TIMER.id); TIMER = null; salvaTimer();
     $("#tval").textContent = "Vai!"; $("#tlab").textContent = "Recupero finito";
     $("#tbar").style.width = "0";
     Tasti.play("gong"); Tasti.haptic([200, 100, 200]);
     renderF(true);
     setTimeout(function () { if (!TIMER) $("#timer").hidden = true; }, 5000);
   }
-  function fermaTimer() { if (TIMER) clearInterval(TIMER.id); TIMER = null; $("#timer").hidden = true; }
-  function piu15() { if (TIMER) { TIMER.fine += 15000; TIMER.tot += 15; TIMER.s = null; tick(); } }
+  function fermaTimer() { if (TIMER) clearInterval(TIMER.id); TIMER = null; salvaTimer(); $("#timer").hidden = true; }
+  function piu15() { if (TIMER) { TIMER.fine += 15000; TIMER.tot += 15; TIMER.s = null; salvaTimer(); tick(); } }
+  // il recupero in corso resta salvato: se l'app si chiude (chiamata, audio bloccato…) riparte da dove era
+  function salvaTimer() { scrivi("ss_timer_v1", TIMER ? { fine: TIMER.fine, tot: TIMER.tot, label: TIMER.label } : null); }
+  function riprendiTimer() {
+    var t = leggi("ss_timer_v1", null);
+    if (!t || !t.fine || t.fine - Date.now() < 1500) { scrivi("ss_timer_v1", null); return; }
+    TIMER = { fine: t.fine, tot: t.tot, label: t.label, id: setInterval(tick, 250), s: null };
+    $("#timer").hidden = false; tick();
+  }
   $("#tstop").addEventListener("click", function () { fermaTimer(); renderF(true); });
   $("#tplus").addEventListener("click", piu15);
 
@@ -394,11 +423,11 @@
   /* ===================== eventi: allenati ===================== */
   $("#luoghi").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b || b.dataset.l === luogo) return;
-    Tasti.play("tick"); fermaTimer(); scegli(b.dataset.l, giornoSuggerito(b.dataset.l).ix); Tasti.land($("#titolo"));
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(b.dataset.l, giornoSuggerito(b.dataset.l).ix); Tasti.land($("#titolo"));
   });
   $("#days").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
-    Tasti.play("tick"); fermaTimer(); scegli(luogo, +b.dataset.i); Tasti.land($("#titolo"));
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(luogo, +b.dataset.i); Tasti.land($("#titolo"));
   });
   // lo slider ha gli scatti, come in Granalume: uno ogni 28 ms al massimo, più deciso agli estremi
   var lastNotch = 0;
@@ -407,6 +436,11 @@
     var x = (+el.value - +el.min) / ((+el.max - +el.min) || 1), end = x <= 0 || x >= 1;
     Tasti.play(end ? "down" : "notch", { vol: end ? .3 : .42, rate: .82 + .36 * x });
   }
+  $("#hint").addEventListener("click", function (e) {
+    var rp = e.target.closest("[data-riprendi]"); if (rp) { riprendi(rp.dataset.riprendi); return; }
+    if (!e.target.closest("#aoggi")) return;
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(luogo, giornoSuggerito(luogo).ix); Tasti.land($("#titolo"));
+  });
   $("#t").addEventListener("input", function (e) {
     var prima = $("#min").textContent;
     budget = +e.target.value; scatto(e.target); renderDial(); renderBlocchi(); salvaUI();
@@ -698,12 +732,12 @@
     F.open = true; F.pos = p < 0 ? 0 : p; F.pick = null;
     $("#focus").hidden = false; document.body.classList.add("focus");
     try { history.pushState({ f: 1 }, ""); } catch (_) {}
-    renderF(true); tieniAcceso();
+    renderF(true); tieniAcceso(); salvaUI();
   }
   function chiudiF(daIndietro) {
     if (!F.open) return;
     fermaTenuta();
-    F.open = false; $("#focus").hidden = true; document.body.classList.remove("focus");
+    F.open = false; $("#focus").hidden = true; document.body.classList.remove("focus"); salvaUI();
     renderBlocchi();
     if (!daIndietro && history.state && history.state.f) { F.salta = true; try { history.back(); } catch (_) { F.salta = false; } }
   }
@@ -935,14 +969,28 @@
       return '<details class="sess"><summary><span class="dt">' + dmy(s.date) + '</span><span class="dn">' + esc((s.tab === "vacanza" ? "Vacanza · " : "") + (s.dayName || s.day)) + tempo + (s.comment ? ' · nota' : '') + '</span>' +
         '<span class="sc">' + fmtNum(dn) + '/' + fmtNum(tot) + '</span></summary><div class="bd">' + (rows || '<p class="cap2">Nessuna serie segnata.</p>') +
         (s.comment ? '<div class="cm">' + esc(s.comment) + '</div>' : '') +
-        '<div class="acts"><button type="button" class="btn-sm" data-del="' + esc(id) + '">Elimina seduta</button></div></div></details>';
+        '<div class="acts">' + (dn < tot - 0.01 && SCHEDA.luoghi[s.tab] ? '<button type="button" class="btn pri" data-riprendi="' + esc(id) + '">Riprendi questa seduta</button>' : '') +
+        '<button type="button" class="btn-sm" data-del="' + esc(id) + '">Elimina seduta</button></div></div></details>';
     }).join("") + '</div>';
     box.innerHTML = h;
+  }
+
+  // riprende una seduta interrotta: stesso luogo, giorno e minuti, le serie già fatte restano segnate,
+  // e si riapre «una cosa alla volta» sulla prima serie che manca
+  function riprendi(id) {
+    var s = SEDUTE[id]; if (!s || !SCHEDA.luoghi[s.tab]) return;
+    var ix = SCHEDA.luoghi[s.tab].giorni.map(function (g) { return g.id; }).indexOf(s.day); if (ix < 0) return;
+    Tasti.play("space"); Tasti.haptic(); fermaTimer();
+    ATTIVA = s.date === oggi() ? null : s.date;
+    scegli(s.tab, ix, s.budget || s.minuti);
+    mostra("allena"); apriF();
   }
 
   $("#hist").addEventListener("change", function (e) { if (e.target.id === "hx") { HX = e.target.value; renderStorico(); } });
   $("#hist").addEventListener("click", function (e) {
     var hm = e.target.closest("[data-hm]"); if (hm) { HMODE = hm.dataset.hm; renderStorico(); return; }
+    var rip = e.target.closest("[data-riprendi]");
+    if (rip) { riprendi(rip.dataset.riprendi); return; }
     var del = e.target.closest("[data-del]");
     if (del) {
       if (!del.dataset.armed) { del.dataset.armed = "1"; del.textContent = "Sicuro? Tocca di nuovo"; del.classList.add("danger"); return; }
@@ -1153,8 +1201,9 @@
   $("#ver2").textContent = "Scheda " + SCHEDA.versione;
   $("#ver3").textContent = "Scheda " + SCHEDA.versione;
   var ui = leggi(LS.ui, null);
-  if (ui && ui.data === oggi() && SCHEDA.luoghi[ui.luogo] && SCHEDA.luoghi[ui.luogo].giorni[ui.day]) {
+  if (ui && (ui.data === oggi() || ui.attiva) && SCHEDA.luoghi[ui.luogo] && SCHEDA.luoghi[ui.luogo].giorni[ui.day]) {
     luogo = ui.luogo; dayIx = ui.day;
+    if (ui.attiva && SEDUTE[ui.attiva + "_" + ui.luogo + "_" + SCHEDA.luoghi[ui.luogo].giorni[ui.day].id]) ATTIVA = ui.attiva;
     full = TempoSmart.calcola(G(), 999, PRIORITA).pieno;
     budget = Math.max(15, Math.min(full, +ui.budget || full));
     mostra(ui.vista || "allena");
@@ -1165,5 +1214,8 @@
     budget = full;
     mostra("allena");
   }
+  riprendiTimer();
+  // l'app era chiusa a metà seduta, nella schermata intera: si riapre lì
+  if (ui && ui.focus && vista === "allena" && sedutaOggi() && (ui.data === oggi() || ATTIVA)) apriF();
   statoSync(); sincronizza();
 })();
