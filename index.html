@@ -296,6 +296,8 @@ body.focus #timer{display:none!important}
 .paio::before,.fnc i::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;background:#b9b5c6}
 .paio-leggeri::before{background:#8fd3ff}
 .chip.paio{color:var(--muted)}
+.chip.monta{color:var(--ink);font-variant-numeric:tabular-nums}
+.fpaio .chip{margin:4px 3px 0}
 .fpaio{text-align:center;margin:-4px 0 10px;font:500 12px/1 var(--body);color:var(--muted)}
 .fnc i{font-style:normal;font-weight:500;margin-left:8px;color:var(--muted)}
 #focus .keyrow{width:100%;max-width:520px;margin:12px auto 0}
@@ -612,7 +614,7 @@ body.focus .aggiorna{display:none}
     <div class="card">
       <h3>Doppia <em>progressione</em></h3>
       <p>Resta nel range di ripetizioni col RIR indicato. Quando chiudi <b>tutte le serie al limite alto</b>, aumenta:</p>
-      <ul><li><b>Bilanciere</b> +2,5 kg · <b>Manubri</b> +2 kg per manubrio</li>
+      <ul><li><b>Bilanciere</b> +2 kg · <b>Manubri</b> +2 kg per manubrio (i tasti − e + vanno solo su pesi che puoi montare coi tuoi dischi)</li>
         <li><b>Corpo libero</b>: più inclinazione → eccentrica di 3 s → zaino → +1 serie</li></ul>
       <p style="margin-top:8px">L'app te lo propone da sola con un'etichetta verde <b>↑</b> sul carico, se hai segnato le ripetizioni. Dopo l'aumento riparti dal limite basso.</p>
     </div>
@@ -693,10 +695,11 @@ body.focus .aggiorna{display:none}
   <div class="tb-right"><span class="eyebrow" id="ver3"></span></div>
 </nav>
 
-<script src="dati.js?v=24"></script>
-<script src="motore.js?v=24"></script>
-<script src="tasti.js?v=24"></script>
-<script src="sync.js?v=24"></script>
-<script src="sequenza.js?v=24"></script>
-<script src="settimana.js?v=24"></script>
-<script src="app.js?v=24"></script>
+<script src="dati.js?v=25"></script>
+<script src="motore.js?v=25"></script>
+<script src="tasti.js?v=25"></script>
+<script src="sync.js?v=25"></script>
+<script src="sequenza.js?v=25"></script>
+<script src="settimana.js?v=25"></script>
+<script src="dischi.js?v=25"></script>
+<script src="app.js?v=25"></script>

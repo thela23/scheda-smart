@@ -91,9 +91,25 @@
     return st.rampPieno ? pieno : pieno / 2;
   }
 
+  /* Cambio dischi: g0._cambio[i][j] = secondi in più se il blocco j viene subito dopo il blocco i (tra quelli che
+     restano nella seduta), perché i dischi del blocco i servono al blocco j e vanno smontati prima (dischi.js). */
+  function attivo(sb) { return sb.ex.some(function (s) { return s.n > 0; }); }
+  function cambiDischi(g0, st) {
+    var out = g0.blocchi.map(function () { return 0; });
+    if (!g0._cambio) return out;
+    var prev = -1;
+    st.blocchi.forEach(function (sb, i) {
+      if (!attivo(sb)) return;
+      if (prev >= 0) out[i] = (g0._cambio[prev] && g0._cambio[prev][i]) || 0;
+      prev = i;
+    });
+    return out;
+  }
+
   function tempoTotale(g0, st) {
     return (st.riscPieno ? RISC_PIENO : RISC_BREVE) + tempoRamp(g0, st) +
-      g0.blocchi.reduce(function (s, b, i) { return s + tempoBlocco(b, st.blocchi[i], st); }, 0);
+      g0.blocchi.reduce(function (s, b, i) { return s + tempoBlocco(b, st.blocchi[i], st); }, 0) +
+      cambiDischi(g0, st).reduce(function (s, x) { return s + x; }, 0);
   }
 
   /* serie efficaci per muscolo (base = quelle gia' fatte nelle parti precedenti della seduta) */
@@ -236,6 +252,7 @@
 
   function calcola(g0, budgetMin, pri, opz) {
     var pieni = volumi(g0, statoPieno(g0)), base = null;
+    if (opz && opz.cambio) { g0 = Object.assign({}, g0); g0._cambio = opz.cambio; }
     if (opz && opz.fatto) { var tf = togliFatto(g0, opz.fatto); g0 = tf.g; base = tf.base; }
     var pieno = statoPieno(g0);
     var tPieno = tempoTotale(g0, pieno);
@@ -255,7 +272,7 @@
     var modifiche = [];
     if (!st.riscPieno) modifiche.push({ t: "Riscaldamento lampo", d: "1:30 invece di 3:00 — solo mobilità specifica." });
     if (!st.rampPieno && bloccoRamp(g0, st) >= 0) modifiche.push({ t: "Ramp-up ridotto", d: "una sola serie leggera prima del bilanciere." });
-    var iRamp = bloccoRamp(g0, st);
+    var iRamp = bloccoRamp(g0, st), cd = cambiDischi(g0, st);
     var blocchi = g0.blocchi.map(function (b, bi) {
       var sb = st.blocchi[bi];
       if (sb.cut) {
@@ -271,7 +288,8 @@
         return { e: e, n: s.n, myo: s.myo, stato: stato };
       });
       var ramp = bi === iRamp ? tempoRamp(g0, st) : 0;
-      return { rest: recupero(b, sb), restPieno: b.rest, ex: ex, tempo: tempoBlocco(b, sb, st) + ramp, ramp: ramp };
+      var tb = tempoBlocco(b, sb, st);
+      return { rest: recupero(b, sb), restPieno: b.rest, ex: ex, tempo: tb ? tb + ramp + cd[bi] : 0, ramp: ramp, scarico: tb ? cd[bi] : 0 };
     });
 
     return {

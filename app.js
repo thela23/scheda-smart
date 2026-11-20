@@ -84,8 +84,28 @@
   }
   function kgDi(load) { var m = numMatch(load); return m ? parseFloat(m[1]) : null; }
   function unitaDi(load) { return /kg/i.test(load) ? " kg" : /tub/i.test(load) ? " tubi" : ""; }
-  // regola della scheda: bilanciere +2,5 kg, manubri +2 kg per manubrio (+1 per i carichi non in kg)
+  // passo di riserva quando dischi.js non sa montare il carico (bilanciere e manubri usano passo(): il più vicino montabile)
   function stepDi(e, load) { return e.k === "bil" ? 2.5 : /kg/i.test(load) ? 2 : 1; }
+  // − / +: col bilanciere e i manubri si va al carico successivo che si può davvero montare coi tuoi dischi (dischi.js);
+  // per il resto (tubi, zaino…) il passo di sempre
+  function passo(e, load, d) {
+    var v = window.Dischi && Dischi.attrezzo(e, load) ? Dischi.vicino(e, load, d) : null;
+    return v || bump(load, d, stepDi(e, load));
+  }
+  function passoTesto(e, load, d) {
+    var a = kgDi(load), b = kgDi(passo(e, load, d));
+    var x = a != null && b != null ? Math.abs(b - a) : stepDi(e, load);
+    return (d < 0 ? "−" : "+") + fmtNum(x || stepDi(e, load));
+  }
+  // cosa montare: chip «10 + 1 per lato», oppure l'avviso col carico possibile più vicino (tocchi e lo metti)
+  function montaHTML(e, load, cls) {
+    var m = window.Dischi ? Dischi.montaggio(e, load) : null;
+    if (!m) return "";
+    if (m.ok) return '<span class="' + cls + ' monta" title="Dischi da montare">⚙ ' + esc(m.testo) + '</span>';
+    return '<span class="' + cls + ' less">Coi tuoi dischi non si monta</span>' + m.vicini.filter(Boolean).map(function (v) {
+      return '<button type="button" class="' + cls + ' sug" data-sug="' + esc(v) + '" data-f="sug">metti ' + esc(v) + '</button>';
+    }).join("");
+  }
   function bump(str, d, step) {
     var raw = String(str || ""), m = numMatch(raw);
     if (!m) return raw;
@@ -107,6 +127,7 @@
     var s = SEDUTE[id];
     // le priorità con cui è stata calcolata: così la seduta resta uguale fino alla fine, qualunque cosa succeda allo storico
     if (!s.pri) s.pri = priOggi();
+    if (!s.cambio && !Object.keys(s.ex).length) s.cambio = cambioOra();
     if (R) { s.budget = budget; s.minuti = R.minuti; s.stimolo = Math.round(R.stimolo * 100); s.pieno = full; }
     return s;
   }
@@ -129,8 +150,19 @@
     PRI_INFO.ritardo = PRI_INFO.ritardo.filter(function (r) { return (pri[r.m] || 0) > (PRIORITA[r.m] || 0); });
     return pri;
   }
+  // secondi per smontare i dischi tra un blocco e l'altro, coi carichi di adesso (dischi.js). Come le priorità, la
+  // seduta iniziata tiene quelli con cui è nata: cambiare un carico a metà non rimescola la seduta.
+  function cambioOra() {
+    var s = SEDUTE[sid()];
+    if (s && s.cambio) return s.cambio;
+    if (s && s.ex && Object.keys(s.ex).length) return null;   // sedute iniziate prima della v25: come allora
+    if (!window.Dischi) return null;
+    var K = Settimana.chiavi(luogo, G());
+    var bl = G().blocchi.map(function (b, bi) { return b.ex.map(function (e, ei) { return { e: e, load: caricoDi(K[bi][ei], e) }; }); });
+    return bl.map(function (a, i) { return bl.map(function (b, j) { return j > i ? Dischi.scarico(a, b) : 0; }); });
+  }
   function opzOggi() {
-    var o = { misura: PRIORITA };
+    var o = { misura: PRIORITA, cambio: cambioOra() };
     if (PARTE) o.fatto = Settimana.fattoDi(SEDUTE, partiPrima(), luogo, G());
     return o;
   }
@@ -212,7 +244,7 @@
     else ok = r.tot > 0 && r.done.filter(Boolean).length >= r.tot && nums.length >= r.tot &&
       nums.slice(0, r.tot).every(function (n) { return n >= top; });
     if (!ok || String(r.load) !== String(loadNow)) return null;
-    if (numMatch(loadNow)) return { tipo: "carico", nuovo: bump(loadNow, 1, stepDi(e, loadNow)) };
+    if (numMatch(loadNow)) return { tipo: "carico", nuovo: passo(e, loadNow, 1) };
     return { tipo: "variante" };
   }
 
@@ -307,7 +339,8 @@
     $("#ritardo").hidden = !rit.length;
     if (rit.length) $("#ritardo").innerHTML = '<b>' + (rit.every(function (r) { return /quadricipiti|femorali|glutei/.test(r.m); }) ? 'Gambe in ritardo' : 'Muscoli in ritardo') +
       '</b> negli ultimi 7 giorni: ' + rit.map(function (r) { return esc(NOMI_MUSCOLI[r.m].toLowerCase()) + ' ' + Math.round(r.copertura * 100) + '%'; }).join(', ') +
-      ' della settimana prevista. Oggi hanno più spazio.';
+      ' della settimana prevista. ' + (rit.some(function (r) { return R.muscoli.some(function (m) { return m.id === r.m && m.ora > 0; }); }) ?
+        'Oggi hanno più spazio.' : 'Con questi minuti non ci stanno: aggiungine qualcuno, o falle nella seconda parte.');
     var opts = [[15, "lampo"], [25, "corta"], [35, "media"], [full, PARTE ? "tutto" : "completa"]].filter(function (o, i, a) { return i === a.length - 1 || o[0] < full; });
     $("#presets").innerHTML = opts.map(function (o) {
       return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (budget === o[0]) + '">' + o[0] + '′<small>' + o[1] + '</small></button>';
@@ -351,7 +384,7 @@
     else chips = '<span class="chip' + (x.n < e.n ? ' less' : '') + '">' + x.n + ' × ' + esc(e.reps) + '</span>';
     if (x.n > 0) {
       if (load) chips += '<button type="button" class="chip load' + (modificato(key) ? ' mod' : '') + '" data-ed="1">' + esc(load) + '<span class="pen">✎</span></button>';
-      chips += paioHTML(e, "chip paio");
+      chips += paioHTML(e, "chip paio") + montaHTML(e, load, "chip");
       if (e.rir) chips += '<span class="chip">RIR ' + esc(e.rir) + '</span>';
       if (sug && sug.tipo === "carico") chips += '<button type="button" class="chip sug" data-sug="' + esc(sug.nuovo) + '" title="L\'ultima volta hai chiuso tutto al limite alto">↑ prova ' + esc(sug.nuovo) + '</button>';
       if (sug && sug.tipo === "variante") chips += '<span class="chip sug">↑ variante più dura</span>';
@@ -400,6 +433,7 @@
       var rest = giri < 2 ? '' : ' · rec ' + (b.rest < b.restPieno ? '<s>' + b.restPieno + 's</s>' + b.rest + ' s' : b.rest + ' s');
       var ramp = b.ramp ? '<div class="ramp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '. Non conta come serie.</div>' :
         b.ex.some(function (x) { return x.n > 0 && x.e.k === "bil"; }) ? '<div class="ramp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico sul bilanciere. Non conta come serie.</div>' : '';
+      if (b.scarico) ramp = '<div class="ramp"><b>Prima: smonta</b> · i dischi del blocco prima servono qui: toglili prima di caricare (conta ~' + b.scarico + ' s).</div>' + ramp;
       return '<div class="block" data-b="' + bi + '"><div class="bh"><span>Blocco ' + n + ' · ' + (live > 1 ? 'superserie' : 'esercizio singolo') + '</span>' +
         '<span class="t">~' + Math.round(b.tempo / 60) + '′' + rest + '</span></div>' + ramp +
         b.ex.map(function (x, ei) { return exHTML(x, KEYS[bi][ei], bi, ei, s); }).join("") +
@@ -560,7 +594,7 @@
     }
     if (t.closest("[data-ed]")) { c = exCtx(t); var ed = $(".ledit", c.el); ed.hidden = !ed.hidden; if (!ed.hidden) $(".lval", ed).focus(); return; }
     var stp = t.closest(".stp");
-    if (stp) { c = exCtx(stp); var inp = $(".lval", c.el); inp.value = bump(inp.value, +stp.dataset.d, stepDi(c.e, inp.value)); applicaCarico(c, inp.value); return; }
+    if (stp) { c = exCtx(stp); var inp = $(".lval", c.el); inp.value = passo(c.e, inp.value, +stp.dataset.d); applicaCarico(c, inp.value); renderBlocchi(); return; }
     if (t.closest(".lreset")) {
       c = exCtx(t); delete CARICHI.loads[c.key]; segnaCarico(c.key); salvaCarichi();
       var s2 = sedutaOggi(); if (s2 && s2.ex[c.key]) { s2.ex[c.key].load = c.e.load; s2.ex[c.key].kg = kgDi(c.e.load); salva(s2); }
@@ -733,7 +767,8 @@
       hero = '<div class="fserie">' + lab + (gia ? ' · <span style="color:var(--ok)">fatta</span>' : '') + '</div>' +
         '<div class="fhuge' + (big === "S" ? ' word' : '') + '" id="fbig">' + big + '</div><div class="ftarget">' + tgt + '</div>' +
         (it.j === 0 && e.k === "bil" ? (b.ramp ? '<div class="framp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '</div>'
-          : '<div class="framp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico, non conta</div>') : '');
+          : '<div class="framp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico, non conta</div>') : '') +
+        (it.primo && b.scarico ? '<div class="framp"><b>Prima: smonta</b> · i dischi del blocco prima servono qui</div>' : '');
       // il prossimo esercizio col suo carico: in superserie si preparano tutti e due prima di partire
       var pk = -1;
       for (var kk = 1; kk < F.q.length; kk++) {
@@ -748,12 +783,13 @@
           (pcar ? '<span class="fnc">' + esc(pcar) + (pe.paio ? '<i class="paio-' + pe.paio + '">' + (pe.paio === "metallo" ? "metallo" : "leggeri") + '</i>' : '') + '</span>' : '') + '</button>';
       }
       ctl += '<div class="fload">' +
-        (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">−' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') +
+        (num ? '<button type="button" class="key sm" data-f="meno"><span class="cap"><span class="kw">' + passoTesto(e, load, -1) + '</span></span></button>' : '') +
         '<button type="button" class="val' + (num ? '' : ' txt') + '" id="fld" data-f="scrivi" aria-label="Scrivi il carico: ' + esc(load || "nessuno") + '">' +
         (num ? (function () { var mm = numMatch(load); return esc(load.slice(0, mm.index)) + esc(load.substr(mm.index, mm[1].length)) + '<small>' + esc(load.slice(mm.index + mm[1].length).trim()) + '</small>'; })() : esc(load || "—")) +
         '<span class="pen" aria-hidden="true">✎</span></button>' +
-        (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">+' + fmtNum(stepDi(e, load)) + '</span></span></button>' : '') + '</div>';
-      if (e.paio) ctl += '<div class="fpaio">' + paioHTML(e, "paio") + '</div>';
+        (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">' + passoTesto(e, load, 1) + '</span></span></button>' : '') + '</div>';
+      var mh = montaHTML(e, load, "chip");
+      if (e.paio || mh) ctl += '<div class="fpaio">' + (e.paio ? paioHTML(e, "paio") : '') + mh + '</div>';
       var tr = tastiRip(e, x, it.j);
       if (e.hold) ctl += '<div class="freps"><button type="button" class="key sm' + (TEN ? ' on' : '') + '" data-f="tenuta"><span class="cap"><span class="kw">' +
         (TEN ? 'Ferma' : '▶ Avvia ' + e.hold + ' s') + '</span></span></button></div>';
@@ -869,7 +905,7 @@
     if (f === "tenuta") { if (TEN) { fermaTenuta(); renderF(); } else avviaTenuta(key + ":" + it.j, x.e.hold); return; }
     if (f === "meno" || f === "piu1") {
       var load = caricoDi(key, x.e);
-      applicaCarico({ key: key, el: null }, bump(load, f === "meno" ? -1 : 1, stepDi(x.e, load)));
+      applicaCarico({ key: key, el: null }, passo(x.e, load, f === "meno" ? -1 : 1));
       renderF(); Tasti.land($("#fld"), { dy: f === "meno" ? 6 : -6, fade: .2 }); return;
     }
     if (f === "sug") { Tasti.play("tick"); applicaCarico({ key: key, el: null }, t.dataset.sug); renderF(); Tasti.land($("#fld")); }

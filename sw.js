@@ -3,11 +3,11 @@
  * Così ogni versione nuova pubblicata arriva alla prima apertura con la rete, e senza rete l'app parte lo stesso.
  * A ogni pubblicazione alzare VERSIONE (uguale al ?v= degli script in index.html).
  * Funziona solo da https (GitHub Pages) o localhost: dal file locale non si registra e non serve. */
-var VERSIONE = "v24";
+var VERSIONE = "v25";
 var CACHE = "scheda-smart-" + VERSIONE;
 var FILE = [
   "./", "index.html", "manifest.webmanifest",
-  "dati.js?v=24", "motore.js?v=24", "tasti.js?v=24", "sync.js?v=24", "sequenza.js?v=24", "settimana.js?v=24", "app.js?v=24",
+  "dati.js?v=25", "motore.js?v=25", "tasti.js?v=25", "sync.js?v=25", "sequenza.js?v=25", "settimana.js?v=25", "dischi.js?v=25", "app.js?v=25",
   "fonts/Gloock-Regular.ttf", "fonts/InstrumentSerif-Italic.ttf", "fonts/Inter-Regular.ttf", "fonts/Inter-Medium.ttf", "fonts/Inter-SemiBold.ttf",
   "icone/apple-touch-icon.png", "icone/icona-192.png", "icone/icona-512.png", "icone/favicon-32.png"
 ];
