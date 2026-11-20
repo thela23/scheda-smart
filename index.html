@@ -74,6 +74,12 @@ h3{font:400 20px/1.15 var(--serif);margin:0 0 8px;letter-spacing:.005em}
 .seg.days button[aria-pressed="true"]{background:linear-gradient(120deg,var(--hue),var(--hue2));color:var(--accent-ink)}
 .hint{font-size:13.5px;color:var(--muted);margin-top:-4px}
 .hint b{color:var(--ink);font-weight:500}
+.hint .parte{display:block;margin-top:10px;line-height:1.5}
+.hint .parte .btn-sm{margin-top:8px;display:flex;align-items:center;width:fit-content;min-height:40px;padding:0 18px;font-size:13.5px}
+.btn-sm.pri{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:var(--accent-ink);box-shadow:none;font-weight:600}
+.btn-sm.pri:hover{background:linear-gradient(120deg,var(--accent),var(--accent-2));filter:brightness(1.06)}
+.ritardo{font-size:13px;line-height:1.45;color:var(--muted);margin-top:8px}
+.ritardo b{color:var(--ink);font-weight:500}
 
 /* ---------- pannello tempo ---------- */
 .dial{background:var(--glass);border-radius:20px;box-shadow:inset 0 0 0 1px var(--line);padding:18px 18px 16px;display:flex;flex-direction:column;gap:12px;
@@ -194,6 +200,7 @@ details.card>summary .n.ok{color:var(--muted);background:var(--raise)}
 .chip{display:inline-flex;align-items:center;font:500 12px/1 var(--body);padding:0 10px;height:28px;border-radius:9px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
 .chip.myo{background:linear-gradient(120deg,var(--accent),var(--accent-2));box-shadow:none;color:var(--accent-ink);font-weight:600}
 .chip.less{color:var(--cut);box-shadow:inset 0 0 0 1px var(--cut-line);background:var(--cut-soft)}
+.chip.ok{color:var(--ok);box-shadow:inset 0 0 0 1px rgba(143,227,184,.35);background:rgba(143,227,184,.08)}
 button.chip{appearance:none;border:0;cursor:pointer}
 .chip.load{color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dc) 45%,transparent);background:var(--dcs)}
 .chip.load .pen{opacity:.55;font-size:10px;margin-left:5px}
@@ -496,6 +503,7 @@ body.focus .aggiorna{display:none}
       <input type="range" id="t" min="15" max="60" step="1" aria-label="Minuti a disposizione">
       <div class="presets" id="presets"></div>
       <div class="verdict" id="verdict"></div>
+      <div class="ritardo" id="ritardo" hidden></div>
     </section>
 
     <div class="keyrow startrow">
@@ -564,6 +572,19 @@ body.focus .aggiorna{display:none}
         <li>La <b>✕</b> in alto torna alla lista, dove vedi tutta la seduta e puoi scrivere note e ripetizioni a mano.</li>
         <li>Sul PC: <b>spazio</b> = Fatta, <b>← →</b> = esercizio prima o dopo, <b>Esc</b> = lista.</li>
       </ol>
+    </div>
+
+    <div class="card">
+      <h3>Seconda <em>parte</em></h3>
+      <p>Hai fatto una seduta corta e più tardi trovi altri minuti? In alto compare <b>«Fai la seconda parte»</b>: l'app ti dà
+        <b>solo quello che mancava</b> del giorno, ricalcolato sui minuti che hai. Vale per una seduta di <b>oggi o di ieri</b>, e
+        compare solo se aggiunge almeno il 10% di stimolo. Rifai il riscaldamento: è una seduta a sé.</p>
+      <p>Non ripetere la stessa seduta lampo due volte: rifaresti gli stessi muscoli, e le gambe resterebbero a zero. Conta il
+        <b>volume della settimana</b> per muscolo, e diviso in due momenti funziona come tutto insieme.</p>
+      <h3 style="margin-top:14px">Gambe in <em>ritardo</em></h3>
+      <p>Le sedute corte tengono braccia e petto e tagliano prima le gambe. Per non perderle, l'app guarda gli <b>ultimi 7 giorni</b>:
+        se un muscolo grande ha avuto meno di un terzo della sua settimana, o meno della metà di braccia e petto, nelle sedute
+        tagliate ha più spazio. Lo vedi scritto sotto lo slider e con «IN RITARDO» in <i>Stimolo per muscolo</i>.</p>
     </div>
 
     <div class="card">
@@ -672,9 +693,10 @@ body.focus .aggiorna{display:none}
   <div class="tb-right"><span class="eyebrow" id="ver3"></span></div>
 </nav>
 
-<script src="dati.js?v=23"></script>
-<script src="motore.js?v=23"></script>
-<script src="tasti.js?v=23"></script>
-<script src="sync.js?v=23"></script>
-<script src="sequenza.js?v=23"></script>
-<script src="app.js?v=23"></script>
+<script src="dati.js?v=24"></script>
+<script src="motore.js?v=24"></script>
+<script src="tasti.js?v=24"></script>
+<script src="sync.js?v=24"></script>
+<script src="sequenza.js?v=24"></script>
+<script src="settimana.js?v=24"></script>
+<script src="app.js?v=24"></script>

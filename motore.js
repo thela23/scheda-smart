@@ -96,9 +96,10 @@
       g0.blocchi.reduce(function (s, b, i) { return s + tempoBlocco(b, st.blocchi[i], st); }, 0);
   }
 
-  /* serie efficaci per muscolo */
-  function volumi(g0, st) {
+  /* serie efficaci per muscolo (base = quelle gia' fatte nelle parti precedenti della seduta) */
+  function volumi(g0, st, base) {
     var x = {};
+    if (base) Object.keys(base).forEach(function (m) { x[m] = base[m]; });
     g0.blocchi.forEach(function (b, bi) {
       var sb = st.blocchi[bi], f = 1 - PENALITA_RECUPERO * sb.cut;
       b.ex.forEach(function (e, i) {
@@ -110,8 +111,8 @@
     return x;
   }
 
-  function punteggio(g0, st, pieni, pri) {
-    var x = volumi(g0, st), num = 0, den = 0;
+  function punteggio(g0, st, pieni, pri, base) {
+    var x = volumi(g0, st, base), num = 0, den = 0;
     Object.keys(pieni).forEach(function (m) {
       var w = pri[m] || 0;
       num += w * g(x[m] || 0); den += w * g(pieni[m]);
@@ -122,6 +123,9 @@
     return p;
   }
 
+  function zero(g0) {
+    return { riscPieno: true, rampPieno: true, blocchi: g0.blocchi.map(function (b) { return { cut: 0, ex: b.ex.map(function () { return { n: 0, myo: false }; }) }; }) };
+  }
   function statoPieno(g0) {
     return {
       riscPieno: true, rampPieno: true,
@@ -169,18 +173,16 @@
   }
 
   /* ---------- ottimizzazione ---------- */
-  function ottimizza(g0, budget, pri) {
-    var pieno = statoPieno(g0);
-    var pieni = volumi(g0, pieno);
-    var st = clone(pieno);
-    var T = tempoTotale(g0, st), P = punteggio(g0, st, pieni, pri);
+  function ottimizza(g0, budget, pri, pieni, base) {
+    var st = statoPieno(g0);
+    var T = tempoTotale(g0, st), P = punteggio(g0, st, pieni, pri, base);
 
     // 1) taglia: la mossa con piu' secondi risparmiati per punto di stimolo perso
     while (T > budget) {
       var best = null;
       mosseTaglio(g0, st).forEach(function (mv) {
         var s2 = clone(st); mv(s2);
-        var t2 = tempoTotale(g0, s2), p2 = punteggio(g0, s2, pieni, pri);
+        var t2 = tempoTotale(g0, s2), p2 = punteggio(g0, s2, pieni, pri, base);
         var risp = T - t2; if (risp <= 0) return;
         var r = risp / (Math.max(P - p2, 0) + 1e-4);
         if (!best || r > best.r) best = { r: r, s: s2, t: t2, p: p2 };
@@ -193,7 +195,7 @@
       var bestA = null;
       mosseAggiunta(g0, st).forEach(function (mv) {
         var s2 = clone(st); mv(s2);
-        var t2 = tempoTotale(g0, s2), p2 = punteggio(g0, s2, pieni, pri);
+        var t2 = tempoTotale(g0, s2), p2 = punteggio(g0, s2, pieni, pri, base);
         if (t2 > budget || p2 <= P) return;
         var r = (p2 - P) / (Math.max(t2 - T, 0) + 1);
         if (!bestA || r > bestA.r) bestA = { r: r, s: s2, t: t2, p: p2 };
@@ -209,18 +211,45 @@
   // la seduta, e lo slider al massimo non taglia nulla.
   function fmtMin(sec) { return Math.ceil(sec / 60 - 1e-9); }
 
-  function calcola(g0, budgetMin, pri) {
+  /* Seconda parte: opz.fatto[bi][ei] = serie efficaci gia' fatte (myo: S 1 + 0,5 per mini). Si toglie dal giorno
+     * quello che e' fatto e si ottimizza solo il resto; lo stimolo e le percentuali per muscolo sono della seduta
+     * intera (parti precedenti + questa), misurate sul giorno completo. */
+  function resto(e, f) {
+    if (!f) return e.n;
+    // un myo completo (2,5) chiude un esercizio da 3 serie; mezza serie avanzata non vale un'altra serie
+    return Math.max(0, Math.floor(e.n - f + 0.4 + 1e-9));
+  }
+  function togliFatto(g0, fatto) {
+    var g1 = clone(g0), base = {};
+    g1.blocchi.forEach(function (b, bi) {
+      b.ex.forEach(function (e, ei) {
+        var f = (fatto[bi] && fatto[bi][ei]) || 0;
+        if (f > 0) {
+          var eq = Math.min(f, e.n);
+          Object.keys(e.m).forEach(function (m) { base[m] = (base[m] || 0) + eq * e.m[m]; });
+        }
+        e.nPiano = e.n; e.n = resto(e, f); e.fatto = f;
+      });
+    });
+    return { g: g1, base: base };
+  }
+
+  function calcola(g0, budgetMin, pri, opz) {
+    var pieni = volumi(g0, statoPieno(g0)), base = null;
+    if (opz && opz.fatto) { var tf = togliFatto(g0, opz.fatto); g0 = tf.g; base = tf.base; }
     var pieno = statoPieno(g0);
     var tPieno = tempoTotale(g0, pieno);
-    var o = ottimizza(g0, budgetMin * 60, pri);
-    var st = o.st, x = volumi(g0, st);
+    var o = ottimizza(g0, budgetMin * 60, pri, pieni, base);
+    o.pieni = pieni;
+    var mis = (opz && opz.misura) || pri;
+    var st = o.st, x = volumi(g0, st, base);
     // un recupero accorciato su un blocco eliminato non conta nulla: non va mostrato
     st.blocchi.forEach(function (sb) { if (!sb.ex.some(function (s) { return s.n > 0; })) sb.cut = 0; });
 
     var muscoli = Object.keys(o.pieni).filter(function (m) { return (pri[m] || 0) > 0; })
-      .sort(function (a, b) { return (pri[b] || 0) - (pri[a] || 0); })
+      .sort(function (a, b) { return (mis[b] || 0) - (mis[a] || 0); })
       .map(function (m) {
-        return { id: m, peso: pri[m], pieno: o.pieni[m], ora: x[m] || 0, pct: g(x[m] || 0) / g(o.pieni[m]) };
+        return { id: m, peso: mis[m] || 0, pesoOggi: pri[m], pieno: o.pieni[m], ora: x[m] || 0, pct: g(x[m] || 0) / g(o.pieni[m]) };
       });
 
     var modifiche = [];
@@ -235,7 +264,8 @@
       }
       var ex = b.ex.map(function (e, i) {
         var s = sb.ex[i], stato = "uguale";
-        if (s.myo) { stato = "myo"; modifiche.push({ t: e.name + ": myo-reps", d: "1 serie di attivazione + " + MYO_MINI + " mini-serie da 3–5." }); }
+        if (base && e.n === 0) stato = "fatto";
+        else if (s.myo) { stato = "myo"; modifiche.push({ t: e.name + ": myo-reps", d: "1 serie di attivazione + " + MYO_MINI + " mini-serie da 3–5." }); }
         else if (s.n === 0) { stato = "via"; modifiche.push({ t: e.name + ": saltato", d: "" }); }
         else if (s.n < e.n) { stato = "meno"; modifiche.push({ t: e.name + ": " + e.n + " → " + s.n + " serie", d: "" }); }
         return { e: e, n: s.n, myo: s.myo, stato: stato };
@@ -246,7 +276,11 @@
 
     return {
       minuti: fmtMin(o.T), secondi: o.T, pieno: fmtMin(tPieno),
-      stimolo: Math.max(0, Math.min(1, o.P)), muscoli: muscoli, modifiche: modifiche, blocchi: blocchi,
+      // lo stimolo mostrato si misura sempre con le priorità normali (opz.misura), anche quando il calcolo ha alzato
+      // quelle dei muscoli in ritardo: così i numeri restano confrontabili da una seduta all'altra
+      stimolo: Math.max(0, Math.min(1, punteggio(g0, st, pieni, mis, base))),
+      prima: base ? Math.max(0, Math.min(1, punteggio(g0, zero(g0), pieni, mis, base))) : null,
+      muscoli: muscoli, modifiche: modifiche, blocchi: blocchi,
       riscaldamento: st.riscPieno ? RISC_PIENO : RISC_BREVE
     };
   }

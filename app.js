@@ -64,8 +64,10 @@
   }
   // ATTIVA: data della seduta che stai continuando dallo Storico (null = la seduta di oggi)
   var ATTIVA = null;
+  // PARTE: stai facendo la seconda (terza…) parte di una seduta corta → { origine: id della prima parte, k: numero }
+  var PARTE = null;
   function salvaUI() {
-    scrivi(LS.ui, { data: oggi(), vista: vista, luogo: luogo, day: dayIx, budget: budget, attiva: ATTIVA,
+    scrivi(LS.ui, { data: oggi(), vista: vista, luogo: luogo, day: dayIx, budget: budget, attiva: ATTIVA, parte: PARTE,
       focus: !!(typeof F !== "undefined" && F && F.open) });
   }
 
@@ -94,15 +96,66 @@
 
   /* ===================== sedute ===================== */
   function dataSeduta() { return ATTIVA || oggi(); }
-  function sid() { return dataSeduta() + "_" + luogo + "_" + G().id; }
+  function sid() { return PARTE ? PARTE.origine + "_p" + PARTE.k : dataSeduta() + "_" + luogo + "_" + G().id; }
   function sedutaOggi() { return SEDUTE[sid()] || null; }
   function assicuraSeduta() {
     var id = sid();
-    if (!SEDUTE[id]) SEDUTE[id] = { date: dataSeduta(), tab: luogo, day: G().id, dayName: G().nome, ts: Date.now(), ex: {}, comment: "" };
+    if (!SEDUTE[id]) {
+      SEDUTE[id] = { date: dataSeduta(), tab: luogo, day: G().id, dayName: G().nome, ts: Date.now(), ex: {}, comment: "" };
+      if (PARTE) { SEDUTE[id].parte = PARTE.k; SEDUTE[id].origine = PARTE.origine; }
+    }
     var s = SEDUTE[id];
+    // le priorità con cui è stata calcolata: così la seduta resta uguale fino alla fine, qualunque cosa succeda allo storico
+    if (!s.pri) s.pri = priOggi();
     if (R) { s.budget = budget; s.minuti = R.minuti; s.stimolo = Math.round(R.stimolo * 100); s.pieno = full; }
     return s;
   }
+  /* ===================== settimana e seconda parte (settimana.js) ===================== */
+  // le parti della seduta in corso prima di questa (per la seconda parte: quello che è già fatto)
+  function partiPrima() {
+    if (!PARTE) return [];
+    return Settimana.parti(SEDUTE, PARTE.origine).filter(function (id) { var x = SEDUTE[id]; return !x.parte || x.parte < PARTE.k; });
+  }
+  // priorità dei muscoli per questa seduta: quelle salvate nella seduta se esiste già (sedute vecchie: quelle normali),
+  // altrimenti alzate per i muscoli in ritardo negli ultimi 7 giorni. PRI_INFO serve a spiegarlo nel pannello.
+  var PRI_INFO = null;
+  function priOggi() {
+    var s = SEDUTE[sid()];
+    var escludi = PARTE ? Settimana.parti(SEDUTE, PARTE.origine) : [];
+    escludi.push(sid());
+    PRI_INFO = Settimana.priorita(PRIORITA, SEDUTE, SCHEDA, luogo, dataSeduta(), escludi);
+    var pri = s && s.pri ? s.pri : s && s.ex && Object.keys(s.ex).length ? PRIORITA : PRI_INFO.pri;
+    // nel pannello si spiegano solo i muscoli alzati davvero in questa seduta
+    PRI_INFO.ritardo = PRI_INFO.ritardo.filter(function (r) { return (pri[r.m] || 0) > (PRIORITA[r.m] || 0); });
+    return pri;
+  }
+  function opzOggi() {
+    var o = { misura: PRIORITA };
+    if (PARTE) o.fatto = Settimana.fattoDi(SEDUTE, partiPrima(), luogo, G());
+    return o;
+  }
+  function calcolaOra(min) { return TempoSmart.calcola(G(), min, priOggi(), opzOggi()); }
+  function minimo() { return Math.min(15, full); }
+  // la seconda parte si propone solo se vale la pena: almeno +10% di stimolo sulla seduta completa
+  function propostaParte() {
+    if (PARTE || ATTIVA) return null;
+    var sp = Settimana.secondaParte(SEDUTE, SCHEDA, luogo, oggi());
+    if (!sp) return null;
+    var pri = Settimana.priorita(PRIORITA, SEDUTE, SCHEDA, luogo, oggi(), Settimana.parti(SEDUTE, sp.origine)).pri;
+    var F = TempoSmart.calcola(sp.giorno, 999, pri, { fatto: sp.fatto, misura: PRIORITA });
+    if (F.stimolo - F.prima < 0.1) return null;
+    sp.minuti = F.pieno; sp.daA = [Math.round(F.prima * 100), Math.round(F.stimolo * 100)];
+    return sp;
+  }
+  function avviaParte(origine, k) {
+    var s0 = SEDUTE[origine]; if (!s0 || !SCHEDA.luoghi[s0.tab]) return;
+    var ix = SCHEDA.luoghi[s0.tab].giorni.map(function (g) { return g.id; }).indexOf(s0.day); if (ix < 0) return;
+    Tasti.play("space"); Tasti.haptic(); fermaTimer();
+    ATTIVA = null; PARTE = { origine: origine, k: k };
+    scegli(s0.tab, ix, s0.budget || 15);
+    Tasti.land($("#titolo"));
+  }
+
   // x = esercizio nel piano di oggi (serie, myo); se cambia modalita' le serie segnate ripartono
   function assicuraEx(s, key, e, x) {
     var r = s.ex[key];
@@ -132,13 +185,14 @@
   }
 
   function ultimaVolta(key) {
-    var t = dataSeduta(), best = null;
+    var t = dataSeduta(), best = null, pp = partiPrima();
     Object.keys(SEDUTE).forEach(function (id) {
       var s = SEDUTE[id];
-      if (!s || !s.ex || s.date >= t) return;
+      if (!s || !s.ex) return;
+      if (s.date >= t && pp.indexOf(id) < 0) return;
       var r = s.ex[key];
       if (!haSerie(r)) return;
-      if (!best || s.date > best.s.date) best = { s: s, r: r };
+      if (!best || s.date > best.s.date || (s.date === best.s.date && (s.ts || 0) > (best.s.ts || 0))) best = { s: s, r: r };
     });
     return best;
   }
@@ -207,6 +261,13 @@
     document.documentElement.style.setProperty("--dcs", "var(--" + g.hue + "-soft)");
     $("#titolo").innerHTML = esc(g.nome) + '<span class="sub">' + sottotitolo(g.sub) + '</span>';
     var sg = giornoSuggerito(luogo), h = "";
+    if (PARTE) {
+      var s0 = SEDUTE[PARTE.origine];
+      $("#hint").innerHTML = '<b>' + (PARTE.k === 2 ? 'Seconda' : PARTE.k === 3 ? 'Terza' : PARTE.k + 'ª') + ' parte del ' + esc(g.nome) +
+        (s0 ? (s0.date === oggi() ? ' di oggi' : ' del ' + dmy(s0.date)) : '') + '</b>: qui c\'è solo quello che mancava. ' +
+        '<button type="button" class="btn-sm" id="aoggi">Seduta nuova</button>';
+      return;
+    }
     if (ATTIVA) {
       $("#hint").innerHTML = '<b>Stai continuando la seduta del ' + dmy(ATTIVA) + '.</b> <button type="button" class="btn-sm" id="aoggi">Torna a oggi</button>';
       return;
@@ -218,44 +279,58 @@
     } else h = "Nessuna seduta ancora registrata qui: si parte dal <b>" + esc(L().giorni[0].nome) + "</b>.";
     // l'ultima seduta è rimasta a metà (e non è quella che hai davanti): si può riprendere con un tocco
     if (sg.ultima && incompleta(sg.ultima)) {
-      var idU = sg.ultima.date + "_" + sg.ultima.tab + "_" + sg.ultima.day;
+      var idU = Settimana.idDi(sg.ultima);
       if (idU !== sid()) h += ' <button type="button" class="btn-sm" data-riprendi="' + esc(idU) + '">Riprendi la seduta interrotta</button>';
+    } else {
+      // seduta corta di oggi o di ieri: il resto si può fare adesso, come seconda parte
+      var sp = propostaParte();
+      if (sp) h += '<span class="parte">Hai ancora il resto del <b>' + esc(sp.giorno.nome) + '</b>' + (sp.data === oggi() ? ' di oggi' : ' di ieri') +
+        ': ~' + sp.minuti + ' min, porta la seduta dal ' + sp.daA[0] + ' al ' + sp.daA[1] + '%. ' +
+        '<button type="button" class="btn-sm pri" data-parte="' + esc(sp.origine) + '" data-k="' + sp.prossima + '">Fai la seconda parte</button></span>';
     }
     $("#hint").innerHTML = h;
   }
 
   function renderDial() {
-    R = TempoSmart.calcola(G(), budget, PRIORITA);
-    var sl = $("#t");
-    sl.max = full; sl.value = budget;
-    sl.style.setProperty("--p", ((budget - 15) / Math.max(1, full - 15) * 100) + "%");
+    R = calcolaOra(budget);
+    var sl = $("#t"), mn = minimo();
+    sl.min = mn; sl.max = full; sl.value = budget;
+    sl.style.setProperty("--p", ((budget - mn) / Math.max(1, full - mn) * 100) + "%");
     $("#min").textContent = R.minuti;
-    $("#of").textContent = R.minuti >= full ? "seduta completa" : "invece di " + full + " min · " + (full - R.minuti) + " min risparmiati";
+    if (PARTE) $("#of").textContent = R.minuti >= full ? "tutto quello che mancava" : "il resto intero è " + full + " min";
+    else $("#of").textContent = R.minuti >= full ? "seduta completa" : "invece di " + full + " min · " + (full - R.minuti) + " min risparmiati";
     $("#pct").textContent = Math.round(R.stimolo * 100) + "%";
     $("#ringv").setAttribute("stroke-dashoffset", (CIRC * (1 - R.stimolo)).toFixed(1));
-    $("#verdict").textContent = verdetto(R.stimolo);
-    var opts = [[15, "lampo"], [25, "corta"], [35, "media"], [full, "completa"]].filter(function (o, i, a) { return i === a.length - 1 || o[0] < full; });
+    $("#verdict").textContent = PARTE && R.prima != null ? "Con la prima parte (" + Math.round(R.prima * 100) + "%) arrivi al " + Math.round(R.stimolo * 100) + "% della seduta completa." : verdetto(R.stimolo);
+    // muscoli in ritardo questa settimana: si dice solo quando cambia davvero qualcosa (seduta tagliata)
+    var rit = PRI_INFO && PRI_INFO.ritardo.length && R.minuti < full ? PRI_INFO.ritardo : [];
+    $("#ritardo").hidden = !rit.length;
+    if (rit.length) $("#ritardo").innerHTML = '<b>' + (rit.every(function (r) { return /quadricipiti|femorali|glutei/.test(r.m); }) ? 'Gambe in ritardo' : 'Muscoli in ritardo') +
+      '</b> negli ultimi 7 giorni: ' + rit.map(function (r) { return esc(NOMI_MUSCOLI[r.m].toLowerCase()) + ' ' + Math.round(r.copertura * 100) + '%'; }).join(', ') +
+      ' della settimana prevista. Oggi hanno più spazio.';
+    var opts = [[15, "lampo"], [25, "corta"], [35, "media"], [full, PARTE ? "tutto" : "completa"]].filter(function (o, i, a) { return i === a.length - 1 || o[0] < full; });
     $("#presets").innerHTML = opts.map(function (o) {
       return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (budget === o[0]) + '">' + o[0] + '′<small>' + o[1] + '</small></button>';
     }).join("");
 
     $("#mus").innerHTML = R.muscoli.filter(function (m) { return m.peso >= 0.5; }).map(function (m) {
       var p = Math.round(m.pct * 100), lo = p < 75 ? "lo" : "";
-      return '<div class="mu"><div class="row"><b>' + esc(NOMI_MUSCOLI[m.id]) + (m.peso >= 1 ? ' <small style="color:var(--accent);font-size:10px;letter-spacing:.06em">PRIORITÀ</small>' : '') +
+      return '<div class="mu"><div class="row"><b>' + esc(NOMI_MUSCOLI[m.id]) + (m.peso >= 1 ? ' <small style="color:var(--accent);font-size:10px;letter-spacing:.06em">PRIORITÀ</small>' :
+        m.pesoOggi > m.peso ? ' <small style="color:var(--accent);font-size:10px;letter-spacing:.06em">IN RITARDO</small>' : '') +
         '</b><span class="' + lo + '">' + p + '%</span></div><div class="bar"><i class="' + lo + '" style="width:' + p + '%"></i></div></div>';
     }).join("");
     var ch = R.modifiche;
     $("#chn").className = "n" + (ch.length ? "" : " ok");
     $("#chn").textContent = ch.length ? ch.length + " modifiche" : "niente";
     $("#chl").innerHTML = ch.length ? ch.map(function (c) { return '<li><b>' + esc(c.t) + '</b>' + (c.d ? ' — ' + esc(c.d) : '') + '</li>'; }).join("")
-      : '<li>È la seduta completa della scheda.</li>';
+      : '<li>' + (PARTE ? 'È tutto quello che mancava.' : 'È la seduta completa della scheda.') + '</li>';
 
     var myo = R.blocchi.some(function (b) { return b.ex.some(function (x) { return x.myo; }); });
     $("#prima").innerHTML = L().prima.map(function (n) {
       return '<div class="pre' + (n.warn ? ' warn' : '') + '"><b>' + esc(n.t) + '</b><p>' + n.p + '</p>' +
         (n.v ? '<p><a href="' + VID(n.v) + '" target="_blank" rel="noopener">Guarda il video ↗</a></p>' : '') + '</div>';
     }).join("") + (myo ? '<div class="myo-box"><b>Oggi ci sono myo-reps.</b> S = una serie quasi al limite, poi 3 mini-serie (1, 2, 3) da 3–5 ripetizioni con 3–5 respiri in mezzo. Stesso peso. Spiegazione completa nella Guida.</div>' : '');
-    $("#sesh").innerHTML = "Tutta la <em>seduta</em>";
+    $("#sesh").innerHTML = PARTE ? "La <em>seconda</em> parte" : "Tutta la <em>seduta</em>";
   }
 
   /* ===================== blocchi ed esercizi ===================== */
@@ -270,7 +345,8 @@
     var sug = x.n > 0 ? suggerimento(e, last, load) : null;
 
     var chips = "";
-    if (x.n === 0) chips = '<span class="chip less">saltato oggi</span>';
+    if (x.stato === "fatto") chips = '<span class="chip ok">fatto nella prima parte</span>';
+    else if (x.n === 0) chips = '<span class="chip less">saltato oggi</span>';
     else if (x.myo) chips = '<span class="chip myo">myo-reps</span><span class="chip">S da ' + esc(e.reps) + ' + 3 mini da 3–5</span>';
     else chips = '<span class="chip' + (x.n < e.n ? ' less' : '') + '">' + x.n + ' × ' + esc(e.reps) + '</span>';
     if (x.n > 0) {
@@ -354,8 +430,11 @@
 
   function scegli(l, ix, minuti) {
     luogo = l; dayIx = ix;
-    full = TempoSmart.calcola(G(), 999, PRIORITA).pieno;
-    budget = minuti ? Math.max(15, Math.min(full, minuti)) : full;
+    full = calcolaOra(999).pieno;
+    // se questa seduta è già iniziata, si riapre con i suoi minuti (se no le serie segnate non tornano col piano)
+    var gia = sedutaOggi();
+    if (!minuti && gia && gia.budget) minuti = gia.budget;
+    budget = minuti ? Math.max(minimo(), Math.min(full, minuti)) : full;
     renderAllena(); salvaUI();
   }
 
@@ -423,11 +502,12 @@
   /* ===================== eventi: allenati ===================== */
   $("#luoghi").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b || b.dataset.l === luogo) return;
-    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(b.dataset.l, giornoSuggerito(b.dataset.l).ix); Tasti.land($("#titolo"));
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; PARTE = null; scegli(b.dataset.l, giornoSuggerito(b.dataset.l).ix); Tasti.land($("#titolo"));
   });
   $("#days").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
-    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(luogo, +b.dataset.i); Tasti.land($("#titolo"));
+    if (PARTE && +b.dataset.i === dayIx) return;     // stesso giorno: resti nella seconda parte («Seduta nuova» per uscire)
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; PARTE = null; scegli(luogo, +b.dataset.i); Tasti.land($("#titolo"));
   });
   // lo slider ha gli scatti, come in Granalume: uno ogni 28 ms al massimo, più deciso agli estremi
   var lastNotch = 0;
@@ -438,8 +518,9 @@
   }
   $("#hint").addEventListener("click", function (e) {
     var rp = e.target.closest("[data-riprendi]"); if (rp) { riprendi(rp.dataset.riprendi); return; }
+    var pa = e.target.closest("[data-parte]"); if (pa) { avviaParte(pa.dataset.parte, +pa.dataset.k); return; }
     if (!e.target.closest("#aoggi")) return;
-    Tasti.play("tick"); fermaTimer(); ATTIVA = null; scegli(luogo, giornoSuggerito(luogo).ix); Tasti.land($("#titolo"));
+    Tasti.play("tick"); fermaTimer(); ATTIVA = null; PARTE = null; scegli(luogo, giornoSuggerito(luogo).ix); Tasti.land($("#titolo"));
   });
   $("#t").addEventListener("input", function (e) {
     var prima = $("#min").textContent;
@@ -964,9 +1045,10 @@
         rows += '<div class="row"><div>' + esc(r.name) + (r.note ? '<div class="exn">' + esc(r.note) + '</div>' : '') + '</div><div class="v">' +
           (r.load ? esc(r.load) + ' · ' : '') + (r.myo ? 'myo ' : '') + fmtNum(c) + '/' + fmtNum(r.myo ? 2.5 : (r.tot || c)) + (r.reps ? '<br>' + esc(r.reps) + ' rip' : '') + '</div></div>';
       });
-      var id = s.date + "_" + s.tab + "_" + s.day;
-      var tempo = s.minuti ? ' · ' + s.minuti + '′' + (s.pieno && s.minuti < s.pieno ? ' (' + s.stimolo + '%)' : '') : '';
-      return '<details class="sess"><summary><span class="dt">' + dmy(s.date) + '</span><span class="dn">' + esc((s.tab === "vacanza" ? "Vacanza · " : "") + (s.dayName || s.day)) + tempo + (s.comment ? ' · nota' : '') + '</span>' +
+      var id = Settimana.idDi(s);
+      // per una parte, la percentuale è della seduta intera (parti di prima + questa)
+      var tempo = s.minuti ? ' · ' + s.minuti + '′' + (s.parte ? ' (in tutto ' + s.stimolo + '%)' : s.pieno && s.minuti < s.pieno ? ' (' + s.stimolo + '%)' : '') : '';
+      return '<details class="sess"><summary><span class="dt">' + dmy(s.date) + '</span><span class="dn">' + esc((s.tab === "vacanza" ? "Vacanza · " : "") + (s.dayName || s.day) + (s.parte ? " · " + s.parte + "ª parte" : "")) + tempo + (s.comment ? ' · nota' : '') + '</span>' +
         '<span class="sc">' + fmtNum(dn) + '/' + fmtNum(tot) + '</span></summary><div class="bd">' + (rows || '<p class="cap2">Nessuna serie segnata.</p>') +
         (s.comment ? '<div class="cm">' + esc(s.comment) + '</div>' : '') +
         '<div class="acts">' + (dn < tot - 0.01 && SCHEDA.luoghi[s.tab] ? '<button type="button" class="btn pri" data-riprendi="' + esc(id) + '">Riprendi questa seduta</button>' : '') +
@@ -982,6 +1064,7 @@
     var ix = SCHEDA.luoghi[s.tab].giorni.map(function (g) { return g.id; }).indexOf(s.day); if (ix < 0) return;
     Tasti.play("space"); Tasti.haptic(); fermaTimer();
     ATTIVA = s.date === oggi() ? null : s.date;
+    PARTE = s.origine && SEDUTE[s.origine] ? { origine: s.origine, k: s.parte } : null;
     scegli(s.tab, ix, s.budget || s.minuti);
     mostra("allena"); apriF();
   }
@@ -1203,15 +1286,17 @@
   var ui = leggi(LS.ui, null);
   if (ui && (ui.data === oggi() || ui.attiva) && SCHEDA.luoghi[ui.luogo] && SCHEDA.luoghi[ui.luogo].giorni[ui.day]) {
     luogo = ui.luogo; dayIx = ui.day;
-    if (ui.attiva && SEDUTE[ui.attiva + "_" + ui.luogo + "_" + SCHEDA.luoghi[ui.luogo].giorni[ui.day].id]) ATTIVA = ui.attiva;
-    full = TempoSmart.calcola(G(), 999, PRIORITA).pieno;
-    budget = Math.max(15, Math.min(full, +ui.budget || full));
+    if (ui.parte && ui.parte.origine && SEDUTE[ui.parte.origine]) PARTE = ui.parte;
+    if (ui.attiva) { ATTIVA = ui.attiva; if (!SEDUTE[sid()]) ATTIVA = null; }
+    full = calcolaOra(999).pieno;
+    budget = Math.max(minimo(), Math.min(full, +ui.budget || full));
     mostra(ui.vista || "allena");
   } else {
     var l0 = ui && SCHEDA.luoghi[ui.luogo] ? ui.luogo : "casa";
     luogo = l0; dayIx = giornoSuggerito(l0).ix;
-    full = TempoSmart.calcola(G(), 999, PRIORITA).pieno;
-    budget = full;
+    full = calcolaOra(999).pieno;
+    var gia0 = sedutaOggi();
+    budget = gia0 && gia0.budget ? Math.max(minimo(), Math.min(full, gia0.budget)) : full;
     mostra("allena");
   }
   riprendiTimer();
