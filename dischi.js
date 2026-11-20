@@ -15,7 +15,7 @@
   "use strict";
   var NORMALI = [[10, 4], [5, 4], [2, 4], [1, 8]];
   var PLASTICA = [[2.5, 4], [1.25, 4]];
-  var MAX_NORMALI = 5;            // kg di dischi normali per manubrio di plastica (Francesco, 20/11/2026)
+  var MAX_NORMALI = 10;           // kg di dischi normali per manubrio di plastica (Francesco, 20/11/2026: «sì, fino a 10»)
   var BASE = { bil: 20, met: 2, pla: 0 };
   var QUANTI = { bil: 1, met: 2, pla: 2 };   // attrezzi che hai
   var SCARICO = 45;               // secondi per smontare i dischi che servono al blocco dopo
@@ -50,7 +50,7 @@
   }
   // il peso più alto che un attrezzo può avere da solo (oltre non si cerca)
   var TUTTI_N = NORMALI.reduce(function (s, d) { return s + d[0] * d[1]; }, 0);
-  var MASSIMO = { bil: BASE.bil + TUTTI_N, met: BASE.met + TUTTI_N, pla: 15 + MAX_NORMALI };
+  var MASSIMO = { bil: BASE.bil + TUTTI_N, met: BASE.met + TUTTI_N, pla: 7.5 + MAX_NORMALI };
 
   // un pezzo (un attrezzo) da caricare a «peso»: le combinazioni per lato possibili, come { norm: [..4], pla: [..2] }
   var CACHE = {};
@@ -179,8 +179,31 @@
     return monta(resta.concat(pd)) ? 0 : SCARICO;
   }
   function insieme(es) { var p = pezziDi(es); return !p.length || !!monta(p); }
+  // superserie che non si carica tutta insieme: per ogni esercizio, il carico più vicino (fino a 3 passi) che la
+  // rende possibile lasciando gli altri come sono → [{ i, load }], il più vicino per esercizio
+  function aggiusta(es) {
+    var out = [];
+    es.forEach(function (x, i) {
+      if (!attrezzo(x.e, x.load)) return;
+      var best = null;
+      [-1, 1].forEach(function (d) {
+        var l = x.load;
+        for (var k = 0; k < 3; k++) {
+          l = vicino(x.e, l, d); if (!l) break;
+          var prova = es.map(function (y, j) { return j === i ? { e: y.e, load: l } : y; });
+          if (insieme(prova)) {
+            var dist = Math.abs(attrezzo(x.e, l).peso - attrezzo(x.e, x.load).peso);
+            if (!best || dist < best.dist) best = { i: i, load: l, dist: dist };
+            break;
+          }
+        }
+      });
+      if (best) out.push({ i: best.i, load: best.load });
+    });
+    return out;
+  }
 
   var API = { attrezzo: attrezzo, combinazioni: combinazioni, monta: monta, pezziDi: pezziDi, montaggio: montaggio,
-    vicino: vicino, scarico: scarico, insieme: insieme, costanti: { MAX_NORMALI: MAX_NORMALI, SCARICO: SCARICO, NORMALI: NORMALI, PLASTICA: PLASTICA } };
+    vicino: vicino, scarico: scarico, insieme: insieme, aggiusta: aggiusta, costanti: { MAX_NORMALI: MAX_NORMALI, SCARICO: SCARICO, NORMALI: NORMALI, PLASTICA: PLASTICA } };
   if (typeof module !== "undefined") module.exports = API; else root.Dischi = API;
 })(this);

@@ -35,7 +35,13 @@ eq(X.montaggio(pla, "12 kg").ok, false, "12 kg sulla plastica oltre il limite di
 eq(X.vicino(bil, "60 kg", 1), "62 kg", "bilanciere +2");
 eq(X.vicino(met, "24 kg/man", 1), "26 kg/man", "manubri +2");
 eq(X.vicino(met, "2 × 9 kg", 1), "2 × 10 kg", "formato 2 × N");
-eq(X.vicino(pla, "2 × 7,5 kg", 1), "2 × 9 kg", "plastica: dopo 7,5 viene 9");
+eq(X.vicino(pla, "2 × 7,5 kg", 1), "2 × 8 kg", "plastica: dopo 7,5 viene 8");
+eq(X.montaggio(pla, "2 × 8 kg").testo, "2 + 2 per lato", "estensioni 2 × 8 sulla plastica (fino a 10 kg di dischi normali)");
+// Giorno C coi carichi veri: estensioni 2 × 8 (2 + 2) + curl 10 (2 + 2) = 8 dischi da 2, ne hai 4
+const est = [{ e: pla, load: "2 × 8 kg" }, { e: met, load: "10 kg" }];
+eq(X.insieme(est), false, "estensioni 2 × 8 + curl 10 insieme");
+X.aggiusta(est).forEach(a => { const p = est.map((y, j) => j === a.i ? { e: y.e, load: a.load } : y); if (!X.insieme(p)) P(`aggiusta: ${a.load} non risolve`); });
+if (!X.aggiusta(est).length) P("aggiusta: nessuna proposta per estensioni + curl");
 // 2 manubri di metallo: tre pesi diversi insieme non si caricano
 eq(X.monta([{ tipo: "met", peso: 12 }, { tipo: "met", peso: 12 }, { tipo: "met", peso: 14 }]), null, "tre manubri di metallo");
 // Floor 24/man + Rematore 24: stessi manubri

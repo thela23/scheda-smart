@@ -47,7 +47,7 @@ var SCHEDA = {
           { rest: 45, ex: [
             { name: "Calf Raise in piedi", paio: "metallo", v: "H6WptvjXkgw", n: 3, reps: "15–20", r: 17, k: "iso", myo: true, load: "24 kg tot", rir: "0–1",
               cue: "Su un gradino: tallone giù fino al massimo allungamento, pausa 1 s in basso.", m: { polpacci: 1 } },
-            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 7,5 kg", rir: "0–1",
+            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
               m: { tricipiti: 1 } } ] },
           { rest: 45, ex: [
             { name: "Push-up a deficit", v: "arcOjmLeq4s", n: 3, reps: "max", r: 12, k: "corpo", myo: true, load: "corpo libero", rir: "0–1",
@@ -99,7 +99,7 @@ var SCHEDA = {
             { name: "Trazioni presa prona", v: "MhokcbRLP5w", n: 3, reps: "6–10", r: 8, k: "corpo", load: "corpo libero", rir: "1–2",
               m: { dorsali: 1, bicipiti: 0.5 } } ] },
           { rest: 45, ex: [
-            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 7,5 kg", rir: "0–1",
+            { name: "Estensioni tricipiti sopra la testa", paio: "leggeri", v: "IJ6J7EKprsc", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "2 × 8 kg", rir: "0–1",
               m: { tricipiti: 1 } },
             { name: "Curl manubri", paio: "metallo", v: "XE_pHwbst04", n: 3, reps: "10–12", r: 11, k: "iso", myo: true, load: "12 kg", rir: "0–1",
               m: { bicipiti: 1 } } ] }

@@ -106,6 +106,19 @@
       return '<button type="button" class="' + cls + ' sug" data-sug="' + esc(v) + '" data-f="sug">metti ' + esc(v) + '</button>';
     }).join("");
   }
+  // superserie che coi tuoi dischi non si carica tutta insieme (ogni carico da solo magari sì): avviso + correzioni
+  function avvisoBlocco(bi, b, cls) {
+    if (!window.Dischi) return "";
+    var es = [], keys = [];
+    b.ex.forEach(function (x, ei) { if (x.n > 0) { es.push({ e: x.e, load: caricoDi(KEYS[bi][ei], x.e) }); keys.push(KEYS[bi][ei]); } });
+    if (es.length < 2 || Dischi.insieme(es)) return "";
+    if (es.some(function (x) { var m = Dischi.montaggio(x.e, x.load); return m && !m.ok; })) return "";   // lo dice già il carico
+    var ag = Dischi.aggiusta(es);
+    return '<div class="' + cls + ' warn"><b>Coi tuoi dischi non si caricano insieme</b> · ' +
+      (ag.length ? 'basta cambiare di poco: ' + ag.map(function (a) {
+        return '<button type="button" class="chip sug" data-sugkey="' + esc(keys[a.i]) + '" data-sug="' + esc(a.load) + '" data-f="sugk">' + esc(es[a.i].e.name) + ' ' + esc(a.load) + '</button>';
+      }).join(" ") : 'cambia uno dei due carichi.') + '</div>';
+  }
   function bump(str, d, step) {
     var raw = String(str || ""), m = numMatch(raw);
     if (!m) return raw;
@@ -433,6 +446,7 @@
       var rest = giri < 2 ? '' : ' · rec ' + (b.rest < b.restPieno ? '<s>' + b.restPieno + 's</s>' + b.rest + ' s' : b.rest + ' s');
       var ramp = b.ramp ? '<div class="ramp"><b>Prima: ramp-up</b> · bilanciere vuoto × 5' + (b.ramp >= 100 ? ' → × 3 al ~60%' : '') + '. Non conta come serie.</div>' :
         b.ex.some(function (x) { return x.n > 0 && x.e.k === "bil"; }) ? '<div class="ramp"><b>Prima: avvicinamento</b> · 1 × 5 a metà carico sul bilanciere. Non conta come serie.</div>' : '';
+      ramp = avvisoBlocco(bi, b, "ramp") + ramp;
       if (b.scarico) ramp = '<div class="ramp"><b>Prima: smonta</b> · i dischi del blocco prima servono qui: toglili prima di caricare (conta ~' + b.scarico + ' s).</div>' + ramp;
       return '<div class="block" data-b="' + bi + '"><div class="bh"><span>Blocco ' + n + ' · ' + (live > 1 ? 'superserie' : 'esercizio singolo') + '</span>' +
         '<span class="t">~' + Math.round(b.tempo / 60) + '′' + rest + '</span></div>' + ramp +
@@ -600,6 +614,8 @@
       var s2 = sedutaOggi(); if (s2 && s2.ex[c.key]) { s2.ex[c.key].load = c.e.load; s2.ex[c.key].kg = kgDi(c.e.load); salva(s2); }
       renderBlocchi(); return;
     }
+    var sk = t.closest("[data-sugkey]");
+    if (sk) { applicaCarico({ key: sk.dataset.sugkey, el: null }, sk.dataset.sug); renderBlocchi(); return; }
     var sug = t.closest("[data-sug]");
     if (sug) { c = exCtx(sug); applicaCarico(c, sug.dataset.sug); renderBlocchi(); return; }
     if (t.closest(".nbtn")) { c = exCtx(t); var nb = $(".exnote", c.el); nb.hidden = !nb.hidden; if (!nb.hidden) $("textarea", nb).focus(); return; }
@@ -790,6 +806,7 @@
         (num ? '<button type="button" class="key sm" data-f="piu1"><span class="cap"><span class="kw">' + passoTesto(e, load, 1) + '</span></span></button>' : '') + '</div>';
       var mh = montaHTML(e, load, "chip");
       if (e.paio || mh) ctl += '<div class="fpaio">' + (e.paio ? paioHTML(e, "paio") : '') + mh + '</div>';
+      ctl += avvisoBlocco(it.bi, b, "fpaio");
       var tr = tastiRip(e, x, it.j);
       if (e.hold) ctl += '<div class="freps"><button type="button" class="key sm' + (TEN ? ' on' : '') + '" data-f="tenuta"><span class="cap"><span class="kw">' +
         (TEN ? 'Ferma' : '▶ Avvia ' + e.hold + ' s') + '</span></span></button></div>';
@@ -909,6 +926,7 @@
       renderF(); Tasti.land($("#fld"), { dy: f === "meno" ? 6 : -6, fade: .2 }); return;
     }
     if (f === "sug") { Tasti.play("tick"); applicaCarico({ key: key, el: null }, t.dataset.sug); renderF(); Tasti.land($("#fld")); }
+    if (f === "sugk") { Tasti.play("tick"); applicaCarico({ key: t.dataset.sugkey, el: null }, t.dataset.sug); renderF(); }
   });
 
   /* ===================== tastiera del PC ===================== */
