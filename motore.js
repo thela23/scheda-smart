@@ -21,6 +21,14 @@
   var RISC_PIENO = 180, RISC_BREVE = 90;
   var MYO_MINI = 3;    // mini-serie dopo quella di attivazione
   var MYO_PAUSA = 15;  // respiri tra le mini-serie
+  /* Minimo 2 serie per esercizio (dal 23/11/2026): un esercizio o si fa con almeno 2 serie (o in myo-reps) o si toglie.
+     Secondo il modello, 1 serie di tanti esercizi e 2 serie di meno esercizi valgono quasi uguale (0–4 punti di stimolo;
+     Krieger 2010: 1 serie ≈ 70% di 2–3). Le cose che il modello non conta stanno tutte dalla parte delle 2 serie:
+     ogni esercizio nuovo chiede riscaldamento specifico e di trovare carico ed equilibrio (Iversen 2021), una
+     «superserie» da un giro solo diventa un circuito senza recuperi, e la doppia progressione si legge su più serie.
+     Nessun programma di riferimento (skill hypertrophy-training: 92 prescrizioni) scende sotto 2 serie.
+     Nella seconda parte, se di un esercizio resta una serie sola, quella si può fare. */
+  var MIN_SERIE = 2;
 
   /* ---------- modello dello stimolo ---------- */
   // Rendimenti decrescenti: g(x) = ln(1 + x/0.3), tarata su Krieger 2010
@@ -152,6 +160,7 @@
   }
 
   /* ---------- mosse possibili ---------- */
+  function minimo(g0, e) { return g0._min2 === false ? 1 : Math.min(MIN_SERIE, e.n); }
   function mosseTaglio(g0, st) {
     var out = [];
     if (st.riscPieno) out.push(function (s) { s.riscPieno = false; });
@@ -166,7 +175,8 @@
       b.ex.forEach(function (e, i) {
         var s0 = sb.ex[i];
         if (s0.myo) out.push(function (s) { s.blocchi[bi].ex[i] = { n: 0, myo: false }; });
-        else if (s0.n > 0) out.push(function (s) { s.blocchi[bi].ex[i].n--; });
+        else if (s0.n > minimo(g0, e)) out.push(function (s) { s.blocchi[bi].ex[i].n--; });
+        else if (s0.n > 0) out.push(function (s) { s.blocchi[bi].ex[i].n = 0; });       // sotto il minimo: via tutto
       });
     });
     return out;
@@ -182,7 +192,7 @@
       b.ex.forEach(function (e, i) {
         var s0 = sb.ex[i];
         if (s0.myo) out.push(function (s) { s.blocchi[bi].ex[i] = { n: e.n, myo: false }; });
-        else if (s0.n < e.n) out.push(function (s) { s.blocchi[bi].ex[i].n++; });
+        else if (s0.n < e.n) out.push(function (s) { var x = s.blocchi[bi].ex[i]; x.n = x.n === 0 ? minimo(g0, e) : x.n + 1; });
       });
     });
     return out;
@@ -252,7 +262,7 @@
 
   function calcola(g0, budgetMin, pri, opz) {
     var pieni = volumi(g0, statoPieno(g0)), base = null;
-    if (opz && opz.cambio) { g0 = Object.assign({}, g0); g0._cambio = opz.cambio; }
+    if (opz && (opz.cambio || opz.min2 === false)) { g0 = Object.assign({}, g0); g0._cambio = opz.cambio; if (opz.min2 === false) g0._min2 = false; }
     if (opz && opz.fatto) { var tf = togliFatto(g0, opz.fatto); g0 = tf.g; base = tf.base; }
     var pieno = statoPieno(g0);
     var tPieno = tempoTotale(g0, pieno);
@@ -303,6 +313,6 @@
     };
   }
 
-  var API = { calcola: calcola, g: g, costanti: { MYO_EQ: MYO_EQ, MYO_MINI: MYO_MINI, TETTO: TETTO } };
+  var API = { calcola: calcola, g: g, costanti: { MYO_EQ: MYO_EQ, MYO_MINI: MYO_MINI, TETTO: TETTO, MIN_SERIE: MIN_SERIE } };
   if (typeof module !== "undefined") module.exports = API; else root.TempoSmart = API;
 })(this);

@@ -32,6 +32,8 @@ for (const g of giorni) {
     // 7. la somma dei blocchi + riscaldamento = totale
     const somma = r.riscaldamento + r.blocchi.reduce((s, bl) => s + bl.tempo, 0);
     if (Math.abs(somma - r.secondi) > 1) P(`${b}′: somma blocchi ${somma.toFixed(0)} ≠ totale ${r.secondi.toFixed(0)}`);
+    // 9. minimo 2 serie per esercizio (o myo, o tolto)
+    r.blocchi.forEach(bl => bl.ex.forEach(x => { if (!x.myo && x.n === 1 && x.e.n >= 2) P(`${b}′: ${x.e.name} con 1 serie sola`); }));
     // 8. percentuali in [0,1]
     r.muscoli.forEach(m => { if (!(m.pct >= 0 && m.pct <= 1.0001)) P(`${b}′: ${m.id} pct ${m.pct}`); });
     prev = r;

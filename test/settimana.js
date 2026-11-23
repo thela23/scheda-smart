@@ -93,7 +93,8 @@ const soloSu = {};
 pr = W.priorita(PRI, soloSu, D.SCHEDA, "casa", "2026-11-20", []);
 ["quadricipiti", "glutei", "femorali"].forEach(m => { if (!(pr.pri[m] > PRI[m])) P(`${m} senza serie in settimana ma priorità non alzata`); });
 Object.keys(pr.pri).forEach(m => {
-  if (pr.pri[m] > 1) P(`${m}: priorità ${pr.pri[m]} sopra 1`);
+  if (pr.pri[m] > W.costanti.SOPRA + 1e-9) P(`${m}: priorità ${pr.pri[m]} sopra ${W.costanti.SOPRA}`);
+  if (pr.pri[m] > 1 && !(pr.copertura[m] < W.costanti.MINIMO)) P(`${m}: priorità sopra 1 ma non è sotto il mantenimento`);
   if (PRI[m] < 0.5 && pr.pri[m] !== PRI[m]) P(`${m}: muscolo piccolo alzato`);
   if (PRI[m] >= 1 && pr.pri[m] !== PRI[m]) P(`${m}: prioritario cambiato`);
 });

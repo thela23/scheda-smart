@@ -11,9 +11,13 @@
  *    confronta il volume fatto con quello della settimana completa della scheda (copertura). Se un muscolo ha avuto
  *    meno della metà della copertura dei muscoli prioritari (petto, bicipiti, tricipiti), oppure meno di un terzo
  *    della sua settimana completa (la dose di mantenimento), la sua priorità sale
- *    verso quella dei prioritari, in proporzione al ritardo. Mai sopra: la priorità resta braccia e petto.
+ *    verso quella dei prioritari, in proporzione al ritardo (fino a 1 se è solo indietro rispetto a braccia e petto).
  *    Vale per i muscoli con priorità da 0,5 in su (gambe, dorsali, spalle laterali); i piccoli (polpacci, core,
  *    deltoidi anteriori e posteriori) restano come sono.
+ *    Sotto un terzo (sotto la dose di mantenimento) può arrivare a 1,2, sopra braccia e petto: con le sedute da 15′ e il
+ *    minimo di 2 serie per esercizio, a priorità 1 le gambe restavano fuori da A e da B per settimane (23/11/2026).
+ *    Prima la dose minima di ogni muscolo grande (Iversen 2021: almeno 4 serie a settimana per muscolo, almeno un
+ *    esercizio per le gambe), poi il resto secondo le priorità.
  *    Perché: conta il volume settimanale per muscolo (Schoenfeld 2017; Pelland 2025), e per non perdere quello che
  *    hai basta circa un terzo del volume (Bickel 2011). Le due soglie tengono le gambe sopra quel minimo senza
  *    togliere il primo posto a braccia e petto. Se negli ultimi 7 giorni non hai fatto niente, non cambia nulla.
@@ -23,6 +27,7 @@
   var GIORNI = 7;        // finestra: gli ultimi 7 giorni, quello della seduta compreso
   var SOGLIA = 0.5;      // in ritardo sotto la metà della copertura dei prioritari...
   var MINIMO = 1 / 3;    // ...o sotto un terzo della settimana completa (mantenimento, Bickel 2011)
+  var SOPRA = 1.2;       // sotto il terzo la priorità può superare braccia e petto (fino a 1,2): prima la dose minima
   var PRI_MIN = 0.5;     // si alzano solo i muscoli con priorità da 0,5 a meno di 1
   var MYO_EQ = 2.5;
 
@@ -165,9 +170,10 @@
     if (rif > 0) Object.keys(pri).forEach(function (m) {
       var p = pri[m]; if (p < PRI_MIN || p >= 1 || !ob[m]) return;
       var rapp = cop[m] / rif;
-      var def = Math.max(0, Math.min(1, Math.max((SOGLIA - rapp) / SOGLIA, (MINIMO - cop[m]) / MINIMO)));
-      if (def <= 0) return;
-      out[m] = Math.round((p + (1 - p) * def) * 100) / 100;
+      var defRel = Math.max(0, Math.min(1, (SOGLIA - rapp) / SOGLIA));       // indietro rispetto a braccia e petto → fino a 1
+      var defAbs = Math.max(0, Math.min(1, (MINIMO - cop[m]) / MINIMO));     // sotto il mantenimento → fino a 1,2
+      if (defRel <= 0 && defAbs <= 0) return;
+      out[m] = Math.round(Math.max(p + (1 - p) * defRel, p + (SOPRA - p) * defAbs) * 100) / 100;
       ritardo.push({ m: m, copertura: cop[m], rif: rif, da: p, a: out[m] });
     });
     ritardo.sort(function (a, b) { return a.copertura - b.copertura; });
@@ -175,6 +181,6 @@
   }
 
   var API = { chiavi: chiavi, serieEff: serieEff, idDi: idDi, parti: parti, prossimaParte: prossimaParte, fattoDi: fattoDi, secondaParte: secondaParte,
-    obiettivo: obiettivo, fattoSettimana: fattoSettimana, priorita: priorita, costanti: { GIORNI: GIORNI, SOGLIA: SOGLIA, MINIMO: MINIMO, PRI_MIN: PRI_MIN, MYO_EQ: MYO_EQ } };
+    obiettivo: obiettivo, fattoSettimana: fattoSettimana, priorita: priorita, costanti: { GIORNI: GIORNI, SOGLIA: SOGLIA, MINIMO: MINIMO, SOPRA: SOPRA, PRI_MIN: PRI_MIN, MYO_EQ: MYO_EQ } };
   if (typeof module !== "undefined") module.exports = API; else root.Settimana = API;
 })(this);

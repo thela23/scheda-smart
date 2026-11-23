@@ -141,6 +141,7 @@
     // le priorità con cui è stata calcolata: così la seduta resta uguale fino alla fine, qualunque cosa succeda allo storico
     if (!s.pri) s.pri = priOggi();
     if (!s.cambio && !Object.keys(s.ex).length) s.cambio = cambioOra();
+    if (!s.regole && !Object.keys(s.ex).length) s.regole = 27;     // minimo 2 serie per esercizio
     if (R) { s.budget = budget; s.minuti = R.minuti; s.stimolo = Math.round(R.stimolo * 100); s.pieno = full; }
     return s;
   }
@@ -176,16 +177,51 @@
   }
   function opzOggi() {
     var o = { misura: PRIORITA, cambio: cambioOra() };
+    // le sedute iniziate prima del 23/11 (v27) restano come sono nate: anche esercizi da 1 serie
+    var s = SEDUTE[sid()];
+    if (s && s.ex && Object.keys(s.ex).length && !s.regole) o.min2 = false;
     if (PARTE) o.fatto = Settimana.fattoDi(SEDUTE, partiPrima(), luogo, G());
     return o;
   }
   function calcolaOra(min) { return TempoSmart.calcola(G(), min, priOggi(), opzOggi()); }
+  // i muscoli in ritardo hanno almeno una serie nel piano?
+  function entrano(r, rit) { return rit.some(function (x) { return r.muscoli.some(function (m) { return m.id === x.m && m.ora > 0; }); }); }
+  // da quanti minuti ci stanno (si ricalcola solo quando cambia la seduta, non a ogni scatto dello slider)
+  var DAMIN = { k: null, v: null };
+  function daMinuti(rit) {
+    var k = sid() + "|" + full + "|" + rit.map(function (x) { return x.m + x.a; }).join(",");
+    if (DAMIN.k === k) return DAMIN.v;
+    var v = null;
+    for (var m = minimo(); m <= full; m++) if (entrano(calcolaOra(m), rit)) { v = m; break; }
+    DAMIN = { k: k, v: v };
+    return v;
+  }
   function minimo() { return Math.min(15, full); }
   // la seconda parte si propone solo se vale la pena: almeno +10% di stimolo sulla seduta completa
+  // una seduta è finita quando ha tutte le serie del piano con cui è nata (non solo quelle degli esercizi già toccati)
+  function finita(id) {
+    var s = SEDUTE[id]; if (!s || !SCHEDA.luoghi[s.tab]) return true;
+    var g = SCHEDA.luoghi[s.tab].giorni.filter(function (x) { return x.id === s.day; })[0]; if (!g) return true;
+    var o = { misura: PRIORITA, cambio: s.cambio || null };
+    if (!s.regole) o.min2 = false;
+    if (s.origine) o.fatto = Settimana.fattoDi(SEDUTE, Settimana.parti(SEDUTE, s.origine).filter(function (x) { var y = SEDUTE[x]; return !y.parte || y.parte < s.parte; }), s.tab, g);
+    var r = TempoSmart.calcola(g, s.budget || s.minuti || 999, s.pri || PRIORITA, o), K = Settimana.chiavi(s.tab, g), manca = false;
+    r.blocchi.forEach(function (b, bi) {
+      b.ex.forEach(function (x, ei) {
+        if (!x.n) return;
+        var rec = s.ex[K[bi][ei]], d = (rec && rec.done) || [], tot = x.myo ? 4 : x.n;
+        if (d.slice(0, tot).filter(Boolean).length < tot) manca = true;
+      });
+    });
+    return !manca;
+  }
   function propostaParte() {
     if (PARTE || ATTIVA) return null;
     var sp = Settimana.secondaParte(SEDUTE, SCHEDA, luogo, oggi());
     if (!sp) return null;
+    // a metà seduta non si propone: prima si finisce la prima parte (anche l'ultima parte fatta dev'essere finita)
+    var ps = Settimana.parti(SEDUTE, sp.origine);
+    if (!finita(ps[ps.length - 1])) return null;
     var pri = Settimana.priorita(PRIORITA, SEDUTE, SCHEDA, luogo, oggi(), Settimana.parti(SEDUTE, sp.origine)).pri;
     var F = TempoSmart.calcola(sp.giorno, 999, pri, { fatto: sp.fatto, misura: PRIORITA });
     if (F.stimolo - F.prima < 0.1) return null;
@@ -323,7 +359,7 @@
         "Ultima seduta: <b>" + esc(nomeU) + "</b> del " + dmy(u.date) + (sg.ix === dayIx ? " → oggi tocca il <b>" + esc(g.nome) + "</b>." : ".");
     } else h = "Nessuna seduta ancora registrata qui: si parte dal <b>" + esc(L().giorni[0].nome) + "</b>.";
     // l'ultima seduta è rimasta a metà (e non è quella che hai davanti): si può riprendere con un tocco
-    if (sg.ultima && incompleta(sg.ultima)) {
+    if (sg.ultima && (incompleta(sg.ultima) || !finita(Settimana.idDi(sg.ultima)))) {
       var idU = Settimana.idDi(sg.ultima);
       if (idU !== sid()) h += ' <button type="button" class="btn-sm" data-riprendi="' + esc(idU) + '">Riprendi la seduta interrotta</button>';
     } else {
@@ -352,8 +388,8 @@
     $("#ritardo").hidden = !rit.length;
     if (rit.length) $("#ritardo").innerHTML = '<b>' + (rit.every(function (r) { return /quadricipiti|femorali|glutei/.test(r.m); }) ? 'Gambe in ritardo' : 'Muscoli in ritardo') +
       '</b> negli ultimi 7 giorni: ' + rit.map(function (r) { return esc(NOMI_MUSCOLI[r.m].toLowerCase()) + ' ' + Math.round(r.copertura * 100) + '%'; }).join(', ') +
-      ' della settimana prevista. ' + (rit.some(function (r) { return R.muscoli.some(function (m) { return m.id === r.m && m.ora > 0; }); }) ?
-        'Oggi hanno più spazio.' : 'Con questi minuti non ci stanno: aggiungine qualcuno, o falle nella seconda parte.');
+      ' della settimana prevista. ' + (entrano(R, rit) ? 'Oggi hanno più spazio.' :
+        'Con questi minuti non ci stanno' + (daMinuti(rit) ? ': ci stanno da <b>' + daMinuti(rit) + '′</b>' : '') + ', o falle nella seconda parte.');
     var opts = [[15, "lampo"], [25, "corta"], [35, "media"], [full, PARTE ? "tutto" : "completa"]].filter(function (o, i, a) { return i === a.length - 1 || o[0] < full; });
     $("#presets").innerHTML = opts.map(function (o) {
       return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (budget === o[0]) + '">' + o[0] + '′<small>' + o[1] + '</small></button>';
